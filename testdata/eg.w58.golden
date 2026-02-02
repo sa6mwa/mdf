@@ -1,0 +1,18 @@
+[1;35m### [0m[1;35m2. Clarify the Purpose of the Outcome[0m
+
+Ensure the team understands why the outcome matters—its
+strategic, operational, or user-centered importance—before
+starting the work. Quality attributes often define what
+"good" looks like for a given outcome. Teams should
+clarify which attributes (e.g., usability, reliability,
+performance, security) are essential for success, and
+ensure those are explicitly part of the intended impact.
+
+[36m-[0m [1m[1;37mIntent[0m – Expressed as a combination of:
+  [36m-[0m [1m[1;37mEnd-State[0m – The desired result or condition to be
+    achieved.
+  [36m-[0m [1m[1;37mConstraints[0m – Boundaries that must not be violated
+    (e.g., safety, policy, cost).
+  [36m-[0m [1m[1;37mPurpose (IOT)[0m – The strategic or operational rationale
+    behind the intent; typically phrased as [3m[34m“in order[0m
+    [3m[34mto...”[0m

@@ -1,0 +1,396 @@
+[1;32m# [0m[1;32mCode Review Is a Dead End[0m
+
+[4m[1;34mAn article published in Computer Sweden[0m
+(https://computersweden.se/article/4121340/utveckl
+are-litar-fortfarande-inte-pa-ai-genererad-kod.htm
+l) argues that developers still do not trust
+AI-generated code—and that this distrust is
+rational because AI code is harder to review, more
+verbose, and shifts the bottleneck from writing to
+inspection. The conclusion is familiar,
+comfortable, and wrong in an important way.
+
+The article correctly observes a symptom, but it
+misidentifies the disease. The problem is not that
+AI generates code we cannot trust. The problem is
+that we are clinging to code review as the primary
+mechanism of trust in a world where code
+production has become effectively free.
+
+Code review was never about quality in the
+abstract. It was about risk management under
+scarcity. When humans typed every line, reading
+diffs was a reasonable proxy for understanding
+intent, correctness, and system impact. That
+premise no longer holds. AI systems can generate
+thousands of lines of plausible code in minutes.
+Asking humans to line-by-line review that output
+is not quality assurance; it is ritualized
+futility.
+
+This is where much of the current discourse subtly
+[4m[1;34m[3m[34mtalks down the machine[0m
+([90mhttps://pkt.systems/tdtm.pdf[0m). AI is framed as a
+fast but careless junior developer whose output
+must be patiently supervised by wiser seniors.
+That framing is psychologically comforting—it
+preserves status—but operationally disastrous. [1m[1;37mIf[0m
+[1m[1;37myour process assumes that humans must read most of[0m
+[1m[1;37mwhat machines produce, you have already lost the[0m
+[1m[1;37mscaling game[0m.
+
+The article quotes concerns about verbosity,
+hidden defects, and "needle-in-a-haystack" bugs,
+echoed by vendors such as [4m[1;34mSonar[0m
+(https://www.sonarsource.com/the-state-of-code/dev
+eloper-survey-report/). These concerns are real.
+But they are not solved by better reviews. [1m[1;37mThey[0m
+[1m[1;37mare solved by making review largely irrelevant[0m.
+
+The alternative is not blind trust. It is a shift
+from outer-loop trust to inner-loop verification.
+
+Instead of asking humans to reason about code by
+reading it, we should force code (human or
+AI-generated) to justify itself through executable
+evidence. That means aggressive use of unit tests,
+integration tests, property-based tests,
+invariants, and simulation. It means systems that
+are self-verifying by construction. If behavior
+matters, behavior must be specified and exercised,
+not inferred from a diff.
+
+This approach changes the economics completely.
+Time spent writing and improving integration tests
+scales far better than time spent reviewing code.
+Tests amortize. Reviews do not. A good integration
+test suite becomes a permanent asset that
+accelerates iteration and constrains future
+changes. A code review is a one-off human
+synchronization cost that must be paid again and
+again.
+
+Crucially, AI agents are far better suited to this
+world than to traditional review. Agents can
+reason about intent, derive edge cases, generate
+adversarial inputs, and continuously improve test
+coverage. They can analyze failures, suggest
+stronger invariants, and refactor tests as the
+system evolves. In other words, they can help move
+trust from social process to technical proof.
+
+Several interviewees in the article note that AI
+code sometimes ignores architectural conventions
+or broader system context. That is not an argument
+for more review; it is an argument for better
+constraints. Architecture that exists only in
+human heads and style guides is not
+architecture—it is folklore. Architecture that is
+enforced by interfaces, contracts, tests, and
+runtime checks is executable and legible to both
+humans and machines.
+
+One quote in the article comes close to the truth.
+A CTO at [4m[1;34mDBT Labs[0m ([90mhttps://www.getdbt.com/[0m) notes
+that trust depends on whether code is produced
+"through a process with high integrity." Exactly.
+But high-integrity processes in an AI-augmented
+world do not look like expanded code review
+checklists. They look like tight inner loops where
+intent, constraints, and verification live close
+together and execute continuously.
+
+Code review will not disappear entirely. It will
+remain useful for pedagogy, architectural
+discussion, and high-level design critique. But as
+a primary quality gate, it is a dead end. [1m[1;37mAI did[0m
+[1m[1;37mnot make code less trustworthy; it made reading[0m
+[1m[1;37mcode the wrong abstraction[0m.
+
+If developers redirected even a fraction of their
+review time into writing stronger integration
+tests and designing self-verifying systems, two
+things would happen immediately. Quality would
+improve, because behavior would be specified and
+exercised rather than assumed. And iteration speed
+would increase, because the review bottleneck
+would evaporate.
+
+[1;34m## [0m[1;34mConclusion[0m
+
+The uncomfortable conclusion is this: the trust
+crisis around AI-generated code is largely
+self-inflicted. We are trying to preserve a
+human-centric control mechanism in a
+machine-scaled environment. That mismatch is the
+real risk. The way forward is not to review more,
+but to verify better—and to let machines help us
+do exactly that.
+
+[1;34m## [0m[1;34mExamples: what the inner loop looks like in[0m
+   [1;34mpractice[0m
+
+To make this concrete, here are three real
+codebases built with an AI-augmented inner loop
+where [1m[1;37mverification—not review—carries the trust[0m
+[1m[1;37mload[0m.
+
+[1;35m### [0m[1;35mExample 1: [0m[1;35m[3m[34mlockd[0m[1;35m — verification as a[0m
+    [1;35mfirst-class artifact[0m
+
+[3m[34mlockd[0m is a distributed coordination service (not
+yet released). Its development assumes that humans
+do not scale as primary readers of code, but they
+[3m[34mdo[0m scale as designers of constraints and
+verification.
+
+[32m{[0m
+[32m  "loc": 144649,[0m
+[32m  "test_loc": 53663,[0m
+[32m  "code_loc": 90986,[0m
+[32m  "percent_test_loc": 37.1,[0m
+[32m  "percent_code_loc": 62.9,[0m
+[32m  "languages": {[0m
+[32m    "go": {[0m
+[32m      "loc": 144649,[0m
+[32m      "test_loc": 53663,[0m
+[32m      "code_loc": 90986,[0m
+[32m      "percent_test_loc": 37.1,[0m
+[32m      "percent_code_loc": 62.9,[0m
+[32m      "test_count": 692,[0m
+[32m      "example_count": 4,[0m
+[32m      "benchmark_count": 35,[0m
+[32m      "fuzz_count": 3[0m
+[32m    }[0m
+[32m  }[0m
+[32m}[0m
+
+[1m[1;37mCodebase composition:[0m
+
+[36m-[0m ~145k total lines of code
+[36m-[0m ~91k LOC of production code
+[36m-[0m ~54k LOC of tests
+[36m-[0m [1m[1;37m≈37% of the entire codebase exists solely to[0m
+  [1m[1;37mverify the other 63%[0m
+
+In practical terms:
+
+[36m-[0m ~700 unit + integration tests
+[36m-[0m Dozens of benchmarks
+[36m-[0m Fuzz tests for concurrency and edge cases
+[36m-[0m Tests written [3m[34malongside[0m code generation, not
+  after review
+
+This is not "extra testing for safety." It is the
+[1m[1;37mcore development loop[0m. The coding agent is
+expected to:
+
+[36m1.[0m Propose implementations
+[36m2.[0m Propose or update tests that falsify those
+   implementations
+[36m3.[0m Iterate until the tests—and the system
+   invariants—hold
+
+Human effort is spent on [3m[34mwhat must be true[0m, not on
+line-by-line inspection of how it is achieved.
+
+[1;35m### [0m[1;35mExample 2: [0m[1;35m[3m[34mlingon[0m[1;35m — speed beyond reviewability[0m
+
+[3m[34mpkt.systems/lingon[0m (not released yet, see [4m[1;34mgithub[0m
+([90mhttps://github.com/sa6mwa/lingon[0m)) is a terminal
+multiplexer and relay system with:
+
+[36m-[0m a Linux host component
+[36m-[0m a server component (the WS relay)
+[36m-[0m a TUI client
+[36m-[0m a web UI (xterm.js)
+[36m-[0m a native Android app
+
+It was produced in [1m[1;37m~10 days[0m across multiple
+languages. Traditional code review simply does not
+fit this cadence.
+
+[32m{[0m
+[32m  "loc": 50510,[0m
+[32m  "test_loc": 15134,[0m
+[32m  "code_loc": 35376,[0m
+[32m  "percent_test_loc": 29.96,[0m
+[32m  "percent_code_loc": 70.04,[0m
+[32m  "languages": {[0m
+[32m    "go": {[0m
+[32m      "loc": 38957,[0m
+[32m      "test_loc": 13703,[0m
+[32m      "code_loc": 25254,[0m
+[32m      "percent_test_loc": 35.17,[0m
+[32m      "percent_code_loc": 64.83,[0m
+[32m      "test_count": 199,[0m
+[32m      "example_count": 0,[0m
+[32m      "benchmark_count": 0,[0m
+[32m      "fuzz_count": 0[0m
+[32m    },[0m
+[32m    "javascript": {[0m
+[32m      "loc": 2913,[0m
+[32m      "test_loc": 0,[0m
+[32m      "code_loc": 2913,[0m
+[32m      "percent_test_loc": 0,[0m
+[32m      "percent_code_loc": 100,[0m
+[32m      "test_count": 0[0m
+[32m    },[0m
+[32m    "kotlin": {[0m
+[32m      "loc": 8065,[0m
+[32m      "test_loc": 1431,[0m
+[32m      "code_loc": 6634,[0m
+[32m      "percent_test_loc": 17.74,[0m
+[32m      "percent_code_loc": 82.26,[0m
+[32m      "test_count": 22[0m
+[32m    },[0m
+[32m    "shell": {[0m
+[32m      "loc": 575,[0m
+[32m      "test_loc": 0,[0m
+[32m      "code_loc": 575,[0m
+[32m      "percent_test_loc": 0,[0m
+[32m      "percent_code_loc": 100[0m
+[32m    }[0m
+[32m  }[0m
+[32m}[0m
+
+[1m[1;37mCodebase composition:[0m
+
+[36m-[0m ~50k total LOC
+[36m-[0m ~15k LOC of tests
+[36m-[0m [1m[1;37m≈30% test code overall[0m
+[36m-[0m [1m[1;37m≈35% test code in Go[0m, the core system language
+
+Notably:
+
+[36m-[0m The system is [3m[34mstill under-tested[0m at the
+  end-to-end level
+[36m-[0m Bugs that remain are [1m[1;37mnot review failures[0m—they
+  are [1m[1;37mmissing-test failures[0m
+[36m-[0m The obvious next step is [3m[34mmore tests[0m, not more
+  review
+
+Trying to "review" this codebase at generation
+speed would either halt progress or degrade into
+rubber-stamping. Verification scales; review does
+not.
+
+[1;35m### [0m[1;35mExample 3: Centaurx[0m
+
+For a released system, consider [4m[1;34mCentaurx[0m
+([90mhttps://github.com/sa6mwa/centaurx[0m).
+[35mpkt.systems/centaurx[0m is a Codex CLI development
+environment that lets developers move fluidly
+between an SSH TUI, a web UI, and a native Android
+client.
+
+The system spans multiple runtimes and interfaces,
+yet its quality strategy follows the same
+inner-loop pattern as the unreleased examples
+above.
+
+[32m{[0m
+[32m  "loc": 45516,[0m
+[32m  "test_loc": 12393,[0m
+[32m  "code_loc": 33123,[0m
+[32m  "percent_test_loc": 27.23,[0m
+[32m  "percent_code_loc": 72.77,[0m
+[32m  "languages": {[0m
+[32m    "go": {[0m
+[32m      "loc": 38374,[0m
+[32m      "test_loc": 11607,[0m
+[32m      "code_loc": 26767,[0m
+[32m      "percent_test_loc": 30.25,[0m
+[32m      "percent_code_loc": 69.75,[0m
+[32m      "test_count": 225,[0m
+[32m      "example_count": 0,[0m
+[32m      "benchmark_count": 0,[0m
+[32m      "fuzz_count": 0[0m
+[32m    },[0m
+[32m    "javascript": {[0m
+[32m      "loc": 1584,[0m
+[32m      "test_loc": 42,[0m
+[32m      "code_loc": 1542,[0m
+[32m      "percent_test_loc": 2.65,[0m
+[32m      "percent_code_loc": 97.35,[0m
+[32m      "test_count": 2[0m
+[32m    },[0m
+[32m    "kotlin": {[0m
+[32m      "loc": 4746,[0m
+[32m      "test_loc": 744,[0m
+[32m      "code_loc": 4002,[0m
+[32m      "percent_test_loc": 15.68,[0m
+[32m      "percent_code_loc": 84.32,[0m
+[32m      "test_count": 8[0m
+[32m    },[0m
+[32m    "shell": {[0m
+[32m      "loc": 812,[0m
+[32m      "test_loc": 0,[0m
+[32m      "code_loc": 812,[0m
+[32m      "percent_test_loc": 0,[0m
+[32m      "percent_code_loc": 100[0m
+[32m    }[0m
+[32m  }[0m
+[32m}[0m
+
+[1m[1;37mCodebase composition:[0m
+
+[36m-[0m ~45k total lines of code
+[36m-[0m ~33k LOC of production code
+[36m-[0m ~12k LOC of test code
+[36m-[0m [1m[1;37m≈27% of the entire codebase is dedicated purely[0m
+  [1m[1;37mto verification[0m
+
+In the core Go codebase—the part most sensitive to
+correctness and concurrency—[1m[1;37mjust over 30% of all[0m
+[1m[1;37mlines are tests[0m, spread across more than 200 test
+cases. The remaining languages (JavaScript,
+Kotlin, shell) follow the same principle, though
+with uneven coverage reflecting where risk and
+complexity actually sit.
+
+What matters here is not the exact percentage, but
+the development posture it reflects: tests are not
+a compliance artifact or something added "after
+review." They are the mechanism by which rapid
+iteration remains safe when code is produced
+faster than humans can reasonably review it.
+
+Centaurx is not an outlier. It is simply a system
+built under the assumption that [1m[1;37mtrust must be[0m
+[1m[1;37mearned by executable evidence[0m, not by manual
+inspection of ever-growing diffs.
+
+[1;35m### [0m[1;35mThe agent contract (why this works)[0m
+
+These projects rely on explicit [1m[1;37magent instructions[0m
+(via an [35mAGENTS.md[0m) that define the rules of
+engagement:
+
+[36m-[0m The agent is not trusted to be correct
+[36m-[0m It [3m[34mis[0m trusted to explore, refactor, and generate
+[36m-[0m Every non-trivial change must come with
+  verification
+[36m-[0m Tests are part of the definition of "done," not
+  a follow-up task
+
+This turns AI from a risky junior developer into a
+[1m[1;37mhigh-throughput implementation engine constrained[0m
+[1m[1;37mby executable proof[0m.
+
+[1;35m### [0m[1;35mThe takeaway[0m
+
+When ~30–40% of your codebase exists purely to
+verify the rest, something fundamental has
+shifted:
+
+[36m-[0m Trust no longer flows through social process
+  (review)
+[36m-[0m Trust flows through [1m[1;37mrepeatable, automated[0m
+  [1m[1;37mevidence[0m
+[36m-[0m Speed increases [3m[34mbecause[0m quality is mechanized,
+  not despite it
+
+This is the inner loop that replaces code review
+as the primary quality gate. It is not softer. It
+is stricter—just finally scalable.

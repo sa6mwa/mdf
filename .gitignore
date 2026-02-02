@@ -1,0 +1,14 @@
+/.gocache
+bin/
+/stash/
+\#*\#
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.log
+*.test
+*.pprof
+vendor/
+.env*

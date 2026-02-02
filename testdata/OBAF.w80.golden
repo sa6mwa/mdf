@@ -1,0 +1,1037 @@
+[1;32m# [0m[1;32mThe Outcome-Based Agile Framework[0m
+
+In a world where agile has often been diluted into process rituals without
+purpose, the [3m[34mOutcome-Based Agile Framework[0m reclaims its core intent: to create
+meaningful change through adaptive learning and value delivery. Inspired by the
+original [4m[1;34mAgile Manifesto[0m ([90mhttps://agilemanifesto.org/[0m), this framework defines a
+model where teams are driven by [1m[1;37moutcomes[0m, [1m[1;37mnot requirements[0m, and guided by
+evidence, not assumption.
+
+[90m>[0m [1m[3m[1;35mCommon Misreadings[0m
+[90m>[0m
+[90m>[0m [36m-[0m [1m[1;37m"No Upfront Requirements"[0m does [1m[1;37mnot[0m mean chaos. It means starting with
+[90m>[0m   [1m[1;37mintent[0m, not [1m[1;37mspecification[0m.
+[90m>[0m [36m-[0m [1m[1;37m"Governance exists to support autonomy"[0m does [1m[1;37mnot[0m imply lack of structure. It
+[90m>[0m   means governance should [1m[1;37menable[0m, not [1m[1;37mcontrol[0m.
+
+[1;34m## [0m[1;34mManifesto[0m
+
+We are uncovering better ways of creating value by focusing on outcomes rather
+than outputs. Through this work, we have come to value:
+
+[36m-[0m [1m[1;37mOutcomes over requirements[0m
+  Because solving problems matters more than delivering predetermined solutions.
+[36m-[0m [1m[1;37mConstraints over scope[0m
+  Because framing the problem is more productive than prescribing its answer.
+[36m-[0m [1m[1;37mDiscovery over certainty[0m
+  Because we can’t predict value—we must find it through learning.
+[36m-[0m [1m[1;37mAccountability to results over compliance to plans[0m
+  Because teams should be responsible for making change, not just delivering
+  work.
+[36m-[0m [1m[1;37mAlignment on intent over agreement on features[0m
+  Because shared goals outlast specific ideas.
+
+That is, while there is value in outputs, defined scopes, and planned features,
+[1m[1;37mwe value the ability to learn and adapt toward real outcomes far more.[0m
+
+[1;34m## [0m[1;34mFramework Tenets[0m
+
+[1;35m### [0m[1;35m1. No Upfront Requirements[0m
+
+Work does not begin with a list of features, specifications, or outputs. Teams
+begin with problems to solve and outcomes to achieve. The only fixed inputs are
+constraints.
+
+[1;35m### [0m[1;35m2. Clarify the Purpose of the Outcome[0m
+
+Ensure the team understands why the outcome matters—its strategic, operational,
+or user-centered importance—before starting the work. Quality attributes often
+define what "good" looks like for a given outcome. Teams should clarify which
+attributes (e.g., usability, reliability, performance, security) are essential
+for success, and ensure those are explicitly part of the intended impact.
+
+[1;35m### [0m[1;35m3. Problem Ownership Over Task Execution[0m
+
+Teams are given ownership of a problem and trusted to determine how best to
+solve it within the defined boundaries.
+
+[1;35m### [0m[1;35m4. Outcomes Are Observable Changes[0m
+
+An outcome is a measurable shift in user behavior, business value, or system
+performance. Delivery is only valuable if it contributes to these shifts. This
+includes improvements in non-functional areas like usability, system
+reliability, deployment efficiency, and security. Quality attributes must be
+observable and verifiable as part of outcome validation.
+
+[1;35m### [0m[1;35m5. Constraints Define Limits, Not Solutions[0m
+
+Constraints—technical, legal, ethical, or otherwise—are real and respected. They
+inform exploration but must not dictate the final form of a solution.
+
+[1;35m### [0m[1;35m6. Continuous Discovery Is Mandatory[0m
+
+Discovery and delivery happen together. Teams explore problems, test assumptions
+(solution hypotheses), and validate ideas in real time. This includes
+discovering which quality attributes matter most in the context and validating
+them with users or stakeholders continuously.
+
+[1;35m### [0m[1;35m7. Evidence Is the Arbiter[0m
+
+All decisions are made based on learning from real users and data. [1m[1;37mPlans are[0m
+[1m[1;37mhypotheses[0m, not contracts.
+
+[1;35m### [0m[1;35m8. Strategy Is Intent, Not Instruction[0m
+
+Leaders set direction through vision and desired outcomes, not through detailed
+feature roadmaps.
+
+[1;35m### [0m[1;35m9. Simplicity of Governance[0m
+
+Governance exists to support autonomy and learning. It must be light, minimal,
+and enabling—never controlling.
+
+[1;35m### [0m[1;35m10. Regular Blameless Retrospectives Through After Action Reviews (AAR)[0m
+
+Teams must conduct regular retrospectives at intervals appropriate to their
+context (after iterations, deliveries, daily, weekly, or combinations). The
+recommended format is the [3m[34mAfter Action Review[0m (AAR), which uses four blameless
+and structured questions:
+
+[36m-[0m [1m[1;37mWhat was supposed to happen?[0m (What was planned?)
+[36m-[0m [1m[1;37mWhat happened?[0m (What actually occurred?)
+[36m-[0m [1m[1;37mWhy did it happen?[0m (Root causes and contributing factors)
+[36m-[0m [1m[1;37mWhat did we learn?[0m (Key insights and adaptations)
+
+Each question is discussed separately and sequentially by the entire team.
+Conversations about "what was planned," "what happened," and "why" must be
+isolated from each other to avoid conflating facts and analysis. Learning points
+can be documented at any time in the "what did we learn" section.
+
+Differences in team members' understanding are celebrated as learning
+opportunities rather than treated as errors. The goal is not for all team
+members to have identical views but to explore the richness of different
+perspectives.
+
+It is considered rude to interrupt team members while they are speaking. The
+facilitator should ensure that each team member has the opportunity to speak
+without interruption and can finish sharing their thoughts before others
+respond.
+
+Importantly, the "what did we learn" section, including any optional recording
+in a knowledge base, must never include the names of individual team members.
+Only lessons learned, without attribution to specific people, are captured to
+ensure a fully blameless environment that fosters openness and continuous
+improvement.
+
+[1;32m# [0m[1;32mHow to Apply This Framework[0m
+
+[90m>[0m [1m[1;37mStart small:[0m Before applying the framework to any initiative—whether one,
+[90m>[0m many, or all—begin with the Readiness Assessment in the next section. It will
+[90m>[0m help you evaluate whether your teams, culture, and leadership are prepared for
+[90m>[0m outcome-driven ways of working. The results will highlight strengths to build
+[90m>[0m on, surface gaps to address, and guide a pace of adoption that fits your
+[90m>[0m context—ensuring the framework supports rather than overwhelms.
+
+Organizations adopting Outcome-Based Agile should begin by clearly defining the
+outcomes they seek. These outcomes should not only be real, measurable changes
+in user or business behavior but also have a clearly articulated purpose.
+Clarifying [3m[34mwhy[0m each outcome matters helps ensure alignment across teams, guides
+prioritization, and connects day-to-day work to broader organizational goals.
+
+In defining and pursuing outcomes, teams should explicitly consider which
+quality attributes are critical to achieving the desired change. These
+attributes—such as security, suitability, usability, reliability,
+maintainability, compatibility, or deployment efficiency—must be treated as part
+of the outcome, not as secondary requirements. Quality attributes should be
+framed as hypotheses to test, measured as part of delivery, and evaluated
+through direct feedback and evidence, not assumed as implicit side effects of
+feature development.
+
+Teams should be cross-functional, capable of discovery and delivery, and given
+end-to-end responsibility for their outcomes.
+
+[1m[1;37mRoadmaps become hypothesis backlogs[0m. Requirements become constraints. Progress
+is measured not by story points, but by progress toward the desired change.
+
+Leadership must shift from steering work to enabling learning. Teams must shift
+from implementing solutions to exploring possibilities. And the organization
+must create space for evidence to matter more than certainty.
+
+[1;32m# [0m[1;32mRecommended Implementation[0m
+
+This framework [1m[1;37mrecommends—not prescribes—a structured yet adaptable approach[0m to
+outcome-driven planning and experimentation. It provides a practical system for
+making not just work visible, but also for surfacing [1m[1;37mintent, constraints,[0m
+[1m[1;37msignals, learnings, and measurable results[0m.
+
+At its core is a [1m[1;37m1+5 nested loop[0m, designed to align rapid action with reflective
+learning. This structure guides teams through continuous cycles of
+intent-setting, hypothesis-building, execution, and adaptation—without imposing
+rigid process overhead.
+
+The six parts of the loop are:
+
+[36m0.[0m Establish Feedback Loops Early
+[36m1.[0m Create an Outcome Card
+[36m2.[0m Initialize an Experiment Canvas
+[36m3.[0m Plan Using the Recognitional Planning Model (RPM)
+[36m4.[0m Translate CoA into Executable Tasks via an Exploratory Kanban Board
+[36m5.[0m Facilitate After Action Reviews (AARs)
+
+[1;34m## [0m[1;34m0. Establish Feedback Loops Early[0m
+
+Before initiating any outcome or experiment, prioritize the creation of [1m[1;37minstant[0m
+[1m[1;37mor near-instant feedback mechanisms[0m that are specific to your domain and
+operational context. These loops form the backbone of your ability to validate
+decisions in real-time and to pivot based on emerging insights.
+
+Without timely feedback, experimentation risks becoming guesswork. Feedback
+loops ensure that learning is continuous, grounded, and actionable.
+
+[90m>[0m [3m[34mTip: Consider making this one of your first Outcome Cards—ensuring early[0m
+[90m>[0m [3m[34mvisibility into what’s working and what’s not.[0m
+
+[1;34m## [0m[1;34m1. Create an Outcome Card[0m
+
+Start by defining a clear, focused [1m[1;37mintent[0m that communicates the outcome you aim
+to achieve. The [1m[1;37mOutcome Card[0m acts as a central alignment artifact—anchoring
+planning, experimentation, and execution in a shared understanding of purpose,
+constraints, and context.
+
+The Outcome Card should be concise yet rich enough to guide action and
+adaptation. Populate it with the following elements:
+
+[36m-[0m [1m[1;37mContext[0m – The situational background or environmental conditions that give
+  rise to the need for action. This ensures that all stakeholders understand the
+  circumstances under which the intent is being pursued.
+
+[36m-[0m [1m[1;37mIntent[0m – Expressed as a combination of:
+  [36m-[0m [1m[1;37mEnd-State[0m – The desired result or condition to be achieved.
+  [36m-[0m [1m[1;37mConstraints[0m – Boundaries that must not be violated (e.g., safety, policy,
+    cost).
+  [36m-[0m [1m[1;37mPurpose (IOT)[0m – The strategic or operational rationale behind the intent;
+    typically phrased as [3m[34m“in order to...”[0m
+
+    [90m>[0m [1m[1;37mExample:[0m
+    [90m>[0m [3m[34mIntent: "Prevent the fire from reaching the gas station (end-state),[0m
+    [90m>[0m [3m[34mwithout risking firefighter safety (constraint), in order to maintain[0m
+    [90m>[0m [3m[34mcritical infrastructure and avoid civilian casualties (purpose)."[0m
+    [90m>[0m
+    [90m>[0m [3m[34mTip: Use the full intent statement as the title of the Outcome Card. This[0m
+    [90m>[0m [3m[34mhelps keep constraints visible and prevents them from silently[0m
+    [90m>[0m [3m[34mtransforming into assumptions or rigid requirements.[0m
+
+[36m-[0m [1m[1;37mSignals of Success[0m – Preliminary indicators—quantitative or qualitative—that
+  suggest progress toward the end-state. These can evolve over time but serve as
+  an early compass for situational awareness and adaptation.
+
+[36m-[0m [1m[1;37mQuality Attributes[0m – Non-functional or qualitative properties that help define
+  what “good” looks like for the outcome. Examples may include [1m[1;37mresilience[0m,
+  [1m[1;37mscalability[0m, [1m[1;37msafety[0m, or [1m[1;37mease of use[0m, depending on the domain.
+
+[36m-[0m [1m[1;37mOwner[0m – The team accountable for exploring and delivering this outcome. This
+  provides a clear point of ownership for planning, execution, and
+  follow-through.
+
+[36m-[0m [1m[1;37mTarget Timeframe[0m – A flexible but bounded estimate for when meaningful signals
+  or results should emerge. It helps scope the experiment and prevent
+  stagnation, while leaving room for complexity and adaptation.
+
+[36m-[0m [1m[1;37mSupporting Outcomes[0m – Outcomes that contribute to the achievement of this
+  primary intent. If an Outcome Card includes supporting outcomes, it is
+  considered a [1m[1;37mnorth-star Outcome Card[0m—typically used at the departmental,
+  portfolio, or organizational level to anchor strategic direction.
+
+A [1m[1;37mnorth-star Outcome Card[0m should be [1m[1;37mbroad in definition[0m and
+[1m[1;37mnon-prescriptive[0m—avoiding early commitments to specific technologies, solutions,
+or metrics. Its role is to align diverse efforts without constraining how
+they’re executed.
+
+North-star Outcome Cards [1m[1;37mdo not require an Experiment Canvas[0m, though they may
+include one if exploration or iteration at the strategic level is needed. Their
+progress is often tracked through high-level [1m[1;37msignals of success[0m and realized
+through the coordinated impact of supporting outcomes.
+
+Each [1m[1;37msupporting outcome[0m must be documented in its own Outcome Card and [1m[1;37mmust[0m
+[1m[1;37minclude an associated Experiment Canvas[0m. This ensures that supporting outcomes
+are actionable, testable, and owned—allowing teams to iterate, adapt, and
+deliver in alignment with the broader intent.
+
+[90m>[0m [3m[34mTip: Use supporting outcomes to translate strategic goals into concrete work[0m
+[90m>[0m [3m[34macross teams—maintaining clarity of direction while enabling decentralized[0m
+[90m>[0m [3m[34mexecution.[0m
+
+[1;34m## [0m[1;34m2. Initialize an Experiment Canvas[0m
+
+After defining your Outcome Card, the next step is to set up an [1m[1;37mExperiment[0m
+[1m[1;37mCanvas[0m. This canvas serves as the operational bridge between [1m[1;37mintent[0m and
+[1m[1;37mexecution[0m, capturing the hypothesis, tasks, and learning that emerge throughout
+the experimentation cycle. It is designed to evolve over time and supports
+structured reflection, making learning explicit and reusable.
+
+The OBAF-format Experiment Canvas is made up of seven hexagons—six arranged in a
+circle around a central one. Each outer hexagon connects directly to the center,
+which anchors the experiment to its strategic outcome. The outer hexagons are
+positioned like points on a clock face, and moving clockwise through them
+mirrors the natural flow of running an experiment—from forming a hypothesis to
+capturing results and learnings. This structure helps keep every part of the
+experiment aligned with its intended outcome and purpose.
+
+[1;35m### [0m[1;35m1. Center Hexagon – Outcome Definition[0m
+
+At the center of the canvas is the outcome definition, representing the
+strategic objective the experiment is ultimately serving. This hexagon contains
+the linked [1m[1;37mOutcome Card[0m, which anchors the work to the broader outcome portfolio
+and provides traceability between the strategic goals and the experiment being
+conducted. Everything else in the canvas connects back to this core definition,
+maintaining alignment with the intended impact.
+
+[1;35m### [0m[1;35m2. 12 o’clock – Hypothesis (Course of Action)[0m
+
+At the top of the canvas is the hexagon that holds the hypothesis under test.
+This is expressed as a [3m[34mCourse of Action[0m (CoA), developed during the RPM planning
+session. The hypothesis should be a clearly stated, testable
+assumption—describing what you expect will happen if a particular action is
+taken. It links a proposed intervention to an anticipated outcome, allowing the
+team to validate or challenge that assumption through experimentation. To
+provide clarity and structure, the Course of Action is ideally broken into three
+phases: [1m[1;37minitially[0m, to outline the first steps; [1m[1;37mthereafter[0m, to describe the
+follow-on actions; and [1m[1;37mfinally[0m, to define how the effort will conclude or
+transition.
+
+[90m>[0m [3m[34mLeave this blank until the planning session has produced a CoA.[0m
+
+[1;35m### [0m[1;35m3. 1:30 – Evaluation Criteria[0m
+
+Moving clockwise, the next hexagon defines the evaluation criteria for the
+experiment. This includes the thresholds, conditions, or boundaries that
+determine whether the hypothesis can be considered valid. It sets the standards
+against which success will be judged, such as acceptable tolerances or target
+ranges, and is critical for determining when to pivot, persevere, or stop the
+experiment altogether.
+
+[1;35m### [0m[1;35m4. 4:30 – Metrics[0m
+
+The next hexagon contains the metrics that will be observed and measured
+throughout the experiment. These signals provide evidence of whether the
+intended outcomes are being achieved. Metrics may be quantitative, such as
+performance indicators or usage statistics, or qualitative, such as user
+behavior or feedback themes. They should be directly relevant to both the
+evaluation criteria and the defined outcome, providing insight into whether
+progress is being made.
+
+[90m>[0m [3m[34mOptionally, leave this blank until after the planning session.[0m
+
+[1;35m### [0m[1;35m5. 6 o’clock – Experiment Steps[0m
+
+At the bottom of the canvas are the experiment steps, which describe the
+concrete actions that will be taken to test the hypothesis. These steps are
+based on the Course of Action and typically translate into tasks managed through
+the [1m[1;37mExploratory Kanban[0m board. The steps should be practical and testable,
+enabling focused execution while allowing for rapid learning through iteration.
+
+[90m>[0m [3m[34mLeave this blank until after the planning session.[0m
+
+[1;35m### [0m[1;35m6. 7:30 – Outputs[0m
+
+Continuing clockwise, this hexagon lists the outputs generated during the
+experiment. These are tangible artifacts or deliverables that result from
+executing the steps of the Course of Action. Outputs might include code commits,
+releases, deployments, documentation, prototypes, decisions, or other forms of
+evidence that something has been built, tested, or delivered as part of the
+experiment.
+
+[1;35m### [0m[1;35m7. 10:30 – Results and Learnings[0m
+
+The final hexagon captures the results and learnings from the experiment. This
+space is progressively populated through [1m[1;37mAfter Action Reviews (AARs)[0m, which
+reflect on what occurred during execution. It documents the observed outcomes,
+whether expected or not, and records the insights gained. Learnings may come
+from both success and failure and are essential for refining future hypotheses
+or adjusting strategy.
+
+[1;34m## [0m[1;34m3. Plan Using the Recognitional Planning Model (RPM)[0m
+
+Conduct a focused planning session using the [1m[1;37mRecognitional Planning Model[0m, which
+supports rapid, experience-driven decision-making—especially under uncertainty,
+time pressure, or incomplete information. Rather than evaluating multiple
+alternatives, RPM relies on pattern recognition to generate a single, viable
+[1m[1;37mCourse of Action (CoA)[0m based on the decision-maker’s mental model of the
+situation.
+
+This CoA becomes your [1m[1;37moperational hypothesis[0m, a testable narrative of how the
+outcome will be achieved under the given constraints and context.
+
+Update the [1m[1;37mExperiment Canvas[0m with the following elements:
+
+[36m-[0m [1m[1;37mHypothesis CoA[0m – Capture the planned course of action in a narrative format,
+  ideally structured as a three-phase progression: [3m[34m“Initially, we...;[0m
+  [3m[34mthereafter, we...; and finally, we...”[0m
+  This storytelling form improves clarity, alignment, and memory
+  recall—especially in complex or time-critical operations.
+
+[36m-[0m [1m[1;37mEvaluation Criteria[0m – Define what success looks like by specifying thresholds,
+  tolerances, or boundaries that must be met for the outcome to be considered
+  achieved.
+
+[36m-[0m [1m[1;37mMetrics[0m – Identify the signals—both quantitative and qualitative—that will be
+  used to track progress and validate whether the intended effects are
+  occurring.
+
+[36m-[0m [1m[1;37mFalsifiability Check[0m – Confirm that the hypothesis is [1m[1;37mtestable and[0m
+  [1m[1;37mfalsifiable[0m, ensuring that failure to achieve the expected outcome can be
+  clearly recognized and learned from.
+
+[1;34m## [0m[1;34m4. Translate CoA into Executable Tasks[0m
+
+Convert the CoA into a set of small, testable [1m[1;37mexecution tasks[0m. These tasks enter
+the [1m[1;37mExploratory Kanban Board[0m, where the focus is on maintaining momentum while
+preserving the ability to learn and adjust. The board is optimized for flow and
+responsiveness, supporting:
+
+[36m-[0m [1m[1;37mLimited batch size[0m – Prevent buildup of large queues and reduce overloaded
+  work-in-progress (WIP).
+[36m-[0m [1m[1;37mSmall work items[0m – Scope tasks tightly to enable rapid feedback and easier
+  course correction.
+[36m-[0m [1m[1;37mContinuous integration[0m – Ensure that insights, deliverables, and results are
+  continuously folded back into both the [1m[1;37mExperiment Canvas[0m and any relevant
+  technical workflows, such as code merges and deployments.
+
+[1;34m## [0m[1;34m5. Facilitate After Action Reviews (AARs)[0m
+
+Schedule [1m[1;37mregular After Action Reviews[0m, or trigger them contextually—for example,
+when the backlog runs thin or a natural breakpoint occurs in execution. AARs are
+essential for institutionalizing learning and deciding whether to reinforce,
+adjust, or abandon a given CoA.
+
+In each AAR:
+
+[36m-[0m Compare outcomes to the hypothesis
+[36m-[0m Assess what succeeded, failed, or surprised
+[36m-[0m Update the [1m[1;37mExperiment Canvas[0m with:
+
+  [36m-[0m Refined metrics and indicators
+  [36m-[0m New contextual insights
+  [36m-[0m Results and documented learning
+
+These updates may inform refinements to the current Outcome Card or trigger a
+new iteration of the planning and experimentation cycle.
+
+[1;34m## [0m[1;34mRecognitional Planning Model[0m
+
+The [1m[1;37mRecognitional Planning Model (RPM)[0m is a cognitive decision-making framework
+originally developed within military and emergency response contexts,
+particularly in high-stakes environments where rapid yet effective decisions are
+needed despite uncertainty or incomplete information. Its foundations trace back
+to the work of Gary Klein and others studying [1m[1;37mnaturalistic decision-making[0m—how
+experts make fast, effective choices based on experience rather than exhaustive
+analysis.
+
+The term "recognitional" reflects the core mechanism of the model: rather than
+generating and comparing multiple detailed options from scratch (as in
+traditional decision theory), experienced practitioners [1m[1;37mrecognize familiar[0m
+[1m[1;37mpatterns or situations[0m, which trigger [1m[1;37mpre-formed mental models or scripts[0m for
+what to do. These scripts are then quickly evaluated for fit. If they seem
+workable, they are executed with minimal delay. If not, they are adapted or
+rejected, and another option is tried. In short, it's not about calculating the
+best plan, but identifying a "good enough" one based on what’s known right now.
+
+OBAF (Outcome-Based Adaptive Framework) draws from RPM to empower teams to [1m[1;37mmove[0m
+[1m[1;37mfrom strategy to action[0m efficiently without being paralyzed by the need for
+perfect plans. In a self-organizing, cross-functional team, RPM helps teams
+generate a [1m[1;37mCourse of Action (CoA)[0m rooted in shared understanding, lived
+experience, and the situational context—rather than top-down directives or
+speculative analysis.
+
+RPM is especially well-suited for environments where:
+
+[36m-[0m Conditions are changing or ambiguous.
+[36m-[0m Information is incomplete but action is still required.
+[36m-[0m The team has enough collective experience to recognize useful patterns and
+  plausible next steps.
+[36m-[0m Rapid experimentation and adaptation are valued over rigid execution.
+
+When applied to planning within an OBAF context, RPM supports the creation of an
+experiment-ready CoA that is simple, realistic, and immediately actionable. It
+enables teams to move quickly toward testing while maintaining alignment with
+strategic outcomes.
+
+[1;34m## [0m[1;34mHow to Apply RPM in a Planning Session[0m
+
+When a team applies RPM, they are not brainstorming a long list of potential
+ideas to analyze and debate. Instead, they begin by identifying [1m[1;37mwhat is known[0m,
+[1m[1;37mwhat’s being observed[0m, and [1m[1;37mwhat similar situations the team has seen before[0m.
+From this, a plausible Course of Action naturally emerges—a storyline of what to
+try next, based on judgment, relevance, and feasibility.
+
+The result is a CoA written in a storytelling format, broken into three distinct
+phases:
+
+[1;35m### [0m[1;35mInitially[0m
+
+This phase sets the immediate next steps—the first actions the team will take
+based on what is currently known and achievable. It may involve establishing a
+starting point, setting up conditions for experimentation, or initiating a
+change. These steps should be clear, specific, and focused on creating early
+signals or momentum.
+
+[90m>[0m [3m[34mExample: “Initially, we will release the new onboarding prompt to 10% of users[0m
+[90m>[0m [3m[34mon the signup page to observe whether it improves progression to the[0m
+[90m>[0m [3m[34mdashboard.”[0m
+
+[1;35m### [0m[1;35mThereafter[0m
+
+This is the unfolding middle of the story—the reaction phase. It outlines how
+the team will follow up based on initial feedback or results, what further
+actions will be taken, and how the hypothesis will evolve through
+implementation.
+
+[90m>[0m [3m[34mExample: “Thereafter, we will compare engagement metrics between the test and[0m
+[90m>[0m [3m[34mcontrol groups and run interviews with selected users who completed the new[0m
+[90m>[0m [3m[34mflow to understand their experience.”[0m
+
+[1;35m### [0m[1;35mFinally[0m
+
+This phase closes the loop. It describes the conditions or criteria for wrapping
+up the experiment, scaling the intervention, or shifting focus. It might include
+what will happen if the hypothesis is confirmed or disproven, or how the team
+will capture and share learnings.
+
+[90m>[0m [3m[34mExample: “Finally, if we see a 20% or higher increase in dashboard activation[0m
+[90m>[0m [3m[34mwithin the test group, we will roll out the prompt to all users and update our[0m
+[90m>[0m [3m[34muser journey map to reflect this new entry pattern.”[0m
+
+[1;35m### [0m[1;35mThe Cognitive Engine[0m
+
+RPM provides a pragmatic, grounded approach to planning—especially suited to
+autonomous, cross-functional teams working under uncertainty. By focusing on
+recognition, experience, and iterative adaptation, it enables teams to act with
+clarity and purpose. In OBAF, it is the cognitive engine behind the Course of
+Action, helping turn strategic intent into experiment-ready hypotheses that are
+both testable and actionable.
+
+[1;34m## [0m[1;34mExploratory Kanban[0m
+
+To support daily exploratory work in Outcome-Based Agile, teams are encouraged
+to adopt a lightweight Kanban system that promotes focus, flow, and learning
+across disciplines. This system is not limited to software—it applies to any
+kind of outcome-focused work, including research, operations, design, service
+development, or policy.
+
+[1;35m### [0m[1;35mSuggested Columns[0m
+
+[36m-[0m [1m[1;37mReady for Development[0m – Items selected from the backlog, framed as hypotheses
+  to explore
+[36m-[0m [1m[1;37mIn Development[0m (or [1m[1;37mDoing[0m, [1m[1;37mIn Process[0m, etc) – Items currently in active
+  exploration, design, testing, or creation
+[36m-[0m [1m[1;37mReady to Test[0m – Work paused for review or integration, awaiting evaluation
+[36m-[0m [1m[1;37mTest[0m – Evaluation of fitness, coherence, quality attributes, or integration
+  with other efforts
+[36m-[0m [1m[1;37mDone[0m – Complete and ready for delivery, use, or deployment
+
+A [1m[1;37mBacklog[0m (or [1m[1;37mTo Do[0m) column contains the team's working hypotheses. These are
+not verified answers but informed bets. When the backlog becomes too shallow, it
+triggers a discovery or planning session to replenish ideas grounded in the
+outcome’s intent and constraints.
+
+[1;35m### [0m[1;35mPull System Across the Flow[0m
+
+The system operates as a pull-based workflow:
+
+[36m-[0m [1m[1;37mWork is never pushed forward.[0m Instead, each column [1m[1;37mpulls[0m from the previous one
+  when capacity allows and context is ready.
+[36m-[0m When work in the [1m[1;37mIn Development[0m (or Doing) column is complete, it is moved to
+  [1m[1;37mReady to Test[0m, not directly into [1m[1;37mTest[0m. This ensures it is [1m[1;37mexplicitly pulled[0m
+  [1m[1;37minto validation[0m when the team has capacity and focus.
+[36m-[0m Similarly, teams [1m[1;37mpull work from the Backlog into Ready for Development[0m,
+  ensuring prioritization is intentional and capacity-aware.
+
+This pull mechanism prevents overload, respects WIP limits, and encourages
+reflection at each transition. It reinforces that movement between phases is a
+deliberate choice, not an automatic step.
+
+[1;35m### [0m[1;35mWIP Limits[0m
+
+To support team autonomy, sustainable pace, and continuous learning, the columns
+[1m[1;37mReady for Development[0m, [1m[1;37mIn Development[0m, and [1m[1;37mTest[0m should include [1m[1;37mWork In Progress[0m
+[1m[1;37m(WIP) limits[0m. These are flexible boundaries set by the team to reveal
+bottlenecks, maintain smooth flow, and foster intentional decision-making—rather
+than rigid rules imposed externally.
+
+[1;35m### [0m[1;35mValidation Happens Outside the Board[0m
+
+This board reflects internal work readiness and coordination—not outcome
+success. Actual validation of a hypothesis happens through [1m[1;37mexternal metrics[0m,
+preferably [1m[1;37mautomated and continuous[0m, such as behavior change, system
+performance, or user engagement. The [1m[1;37mDone[0m column indicates readiness for
+delivery, not proof of effectiveness.
+
+[1;35m### [0m[1;35mWhy This Flow Supports OBAF[0m
+
+This Exploratory Kanban system enables:
+
+[36m-[0m [1m[1;37mVisible exploration[0m of hypotheses
+[36m-[0m [1m[1;37mTeam-managed flow[0m based on capacity, not forced schedules
+[36m-[0m [1m[1;37mClear separation of working and validating[0m
+[36m-[0m [1m[1;37mAdaptive prioritization[0m grounded in outcomes
+[36m-[0m [1m[1;37mContinuous discovery[0m through parallel metrics and learning
+
+It supports autonomy, encourages sustainable pace, and keeps delivery aligned
+with real-world evidence—as Outcome-Based Agile demands.
+
+[1;34m## [0m[1;34mValidation Outside the Board[0m
+
+The Kanban board reflects the team’s internal readiness and coordination—not the
+validation of actual outcomes.
+
+[36m-[0m [1m[1;37mValidation happens beyond the board[0m, through continuous, preferably automated,
+  metrics (e.g., behavior change, system performance, user engagement).
+[36m-[0m There are no predefined validation criteria before delivery, because outcomes
+  cannot be fully anticipated.
+[36m-[0m [1m[1;37mValidation is emergent[0m, based on real-world feedback and production use—via
+  A/B tests, before-after comparisons, or system telemetry.
+
+Equally important, OBAF emphasizes qualitative validation. Insights from user
+interviews, observational research, session recordings, and open-ended feedback
+provide context and meaning that quantitative signals alone cannot capture.
+These methods reveal why users behave the way they do, not just what they do.
+Emerging technologies—such as AI-powered sentiment analysis, natural language
+processing, and real-time experience tracking—now make qualitative validation
+more scalable and actionable than ever before.
+
+The Outcome-Based Agile Framework treats both forms of evidence as essential and
+complementary. Effective validation blends data and dialogue, measuring behavior
+while understanding intent. This ensures that outcomes are not only observable
+but meaningful.
+
+[1;32m# [0m[1;32mCommon Anti-Patterns in Outcome Validation[0m
+
+To maintain the integrity of outcome-based work, teams must be mindful of common
+traps that quietly erode learning and agility. These anti-patterns often emerge
+when metrics are misused, constraints become overly rigid, or activity is
+mistaken for value.
+
+[1;34m## [0m[1;34m1. Goodhart’s Law in Action[0m
+
+[90m>[0m When a measure becomes a target, it ceases to be a good measure.
+
+When teams fixate on hitting specific numbers (e.g., reducing bounce rate or
+increasing click-through), they may lose sight of the underlying change that
+truly matters. Metrics should serve as signals for exploration—not targets to
+hit at any cost.
+
+[1;34m## [0m[1;34m2. Vanity Metrics[0m
+
+Not all data is meaningful. Metrics like page views, impressions, or internal
+velocity can create the illusion of progress while masking stagnation. These
+vanity metrics look good on dashboards but rarely reflect real user or business
+outcomes. Prioritize signals that tie directly to meaningful behavior change or
+value realization.
+
+[1;34m## [0m[1;34m3. Constraint Creep[0m
+
+Constraints exist to define safe boundaries—not to prescribe solutions. Over
+time, teams often inherit outdated specifications or interpret vague standards
+as fixed requirements. This slow expansion of what’s considered “non-negotiable”
+can quietly kill innovation. Revisit constraints regularly to ensure they’re
+still valid, contextual, and evidence-based.
+
+[1m[1;37mWhat to do instead:[0m
+
+[36m-[0m Use metrics as [1m[1;37mlearning tools[0m, not success criteria. Let signals inform, not
+  dictate.
+[36m-[0m Question the purpose behind each measurement. Ask, [3m[34m“What does this really tell[0m
+  [3m[34mus?”[0m
+[36m-[0m Revalidate constraints. Treat them as hypotheses too—especially when they
+  block experimentation.
+
+These reminders help teams stay focused on learning and progress that matters—so
+validation remains a discovery process, not a performance ritual.
+
+[1;32m# [0m[1;32mOutcome vs. Output[0m
+
+A frequent challenge in applying outcome-based thinking is the [1m[1;37mblurring between[0m
+[1m[1;37moutcomes and outputs[0m, especially at the team level. Outputs are [1m[1;37mthings we[0m
+[1m[1;37mdeliver[0m—features, services, improvements. Outcomes are the [1m[1;37mobservable changes[0m
+those outputs create in the real world.
+
+[90m>[0m An output is [1m[1;37mdelivered[0m.
+[90m>[0m An outcome is [1m[1;37mvalidated[0m by real-world evidence.
+
+Teams often mistake improved functionality (e.g., "faster page load") for
+outcomes, when the true goal is behavioral or value-based (e.g., "more users
+complete the checkout process").
+
+[1;34m## [0m[1;34mExamples[0m
+
+[36m1.[0m [1m[1;37mOutcome:[0m Users complete tasks faster
+   [1m[1;37mSignals of change:[0m Higher task completion rates and a reduction in user
+   drop-offs
+   [1m[1;37mRelated outputs:[0m Page speed improvements and a streamlined user interface
+   with fewer steps
+
+[36m2.[0m [1m[1;37mOutcome:[0m More users set up their accounts through self-service
+   [1m[1;37mSignals of change:[0m Increased percentage of accounts created without needing
+   human assistance
+   [1m[1;37mRelated outputs:[0m Redesigned onboarding experience and automated support tools
+
+[36m3.[0m [1m[1;37mOutcome:[0m Fewer users require support for password issues
+   [1m[1;37mSignals of change:[0m Lower volume of support tickets and positive user feedback
+   [1m[1;37mRelated outputs:[0m Enhanced "Forgot Password" functionality and better input
+   validation
+
+[36m4.[0m [1m[1;37mOutcome:[0m Users trust billing processes more
+   [1m[1;37mSignals of change:[0m Fewer billing-related complaints and higher Net Promoter
+   Score (NPS)
+   [1m[1;37mRelated outputs:[0m Clearer invoice layouts and helpful usage explanations via
+   tooltips
+
+[36m5.[0m [1m[1;37mOutcome:[0m Increased usage of the scheduling feature
+   [1m[1;37mSignals of change:[0m Higher adoption and more frequent usage of the feature
+   [1m[1;37mRelated outputs:[0m Launch of the feature, onboarding guidance, and supportive
+   help content
+
+[90m>[0m [1m[1;37mExample:[0m
+[90m>[0m “Improve page load time” is an [1m[1;37moutput[0m (a quality attribute). “Increase
+[90m>[0m checkout completion rate” is the [1m[1;37moutcome[0m. The former contributes to the
+[90m>[0m latter, but [1m[1;37mis not the outcome itself[0m.
+
+[1;34m## [0m[1;34mTip for Teams[0m
+
+When defining an outcome, ask:
+
+[36m-[0m What will people [1m[1;37mdo differently[0m if this works?
+[36m-[0m How will we [1m[1;37mobserve or measure[0m that change?
+[36m-[0m Could the outcome be achieved [1m[1;37min multiple ways[0m?
+
+Outcomes describe [1m[1;37mwhy something matters[0m and how success is observed—not what to
+build.
+
+[1;32m# [0m[1;32mCross-Team Coordination and Outcome Ownership[0m
+
+Outcomes should not be split across teams with different priorities. To ensure
+coherence and ownership:
+
+[36m-[0m Each outcome should belong to one clearly defined team or pod.
+[36m-[0m If multiple teams contribute, they must act as a single outcome-focused unit.
+[36m-[0m Organizational structures should evolve to reflect outcome boundaries
+  (Conway’s Law in reverse).
+[36m-[0m Interfaces and dependencies should be framed as contracts, not coordination
+  burdens.
+
+Teams are encouraged to reorganize when outcome ownership becomes diluted or
+coordination overhead increases.
+
+[1;32m# [0m[1;32mLeadership and Oversight[0m
+
+Leadership in OBAF means enabling, not directing. Oversight should be nearly
+invisible:
+
+[36m-[0m [1m[1;37mOptimal oversight is automated[0m: KPIs, usage data, or real-world impact
+  signals.
+[36m-[0m Leaders guide through vision and constraints—not feature lists or status
+  reports.
+[36m-[0m Interventions should only occur in cases of systemic failure, ethical risk, or
+  learning breakdowns.
+[36m-[0m Sponsors and managers should practice servant leadership — understood here as
+  a facilitative approach — by funding experiments, supporting outcome framing,
+  and modeling evidence-based decision-making.
+
+[1;34m## [0m[1;34mFrom Status-Reporting to Evidence-Framing[0m
+
+For leaders and sponsors, shifting from traditional output oversight to outcome
+enablement means more than changing what gets tracked—it requires changing how
+conversations happen.
+
+In status-reporting cultures, reviews often focus on surface-level indicators:
+percent complete, story points burned, or tasks delivered. These measures are
+easy to collect but rarely illuminate whether meaningful progress is happening.
+
+Evidence-framing transforms these conversations. Instead of asking, [3m[34m“Are we on[0m
+[3m[34mtrack?”[0m leaders ask, [3m[34m“What have we learned?”[0m, [3m[34m“What signals are emerging?”[0m, and
+[3m[34m“What’s the current level of confidence in the outcome?”[0m
+
+This shift happens progressively, often in small steps:
+
+[36m-[0m A delivery update evolves into a learning review, where the team shares new
+  insights about user behavior or system feedback—not just what was built.
+[36m-[0m Instead of tracking feature completion, leaders start watching for real-world
+  signals that value is emerging (e.g., user adoption, friction reduction,
+  behavior change).
+[36m-[0m Weekly reports stop listing tasks and start summarizing discoveries, test
+  results, and adjustments based on evidence.
+[36m-[0m "Red-yellow-green" status summaries give way to qualitative confidence
+  levels—rooted in both data and team insight.
+
+As leaders adopt this posture, they stop asking for certainty and start
+investing in clarity. They stop steering by roadmap and start enabling
+exploration, grounded in trust and observable impact.
+
+The goal is not to eliminate accountability—but to make it meaningful. When
+teams are asked to show [1m[1;37mevidence of learning[0m, not just activity, accountability
+becomes a tool for alignment, not control.
+
+[1;32m# [0m[1;32mOutcome-Based Agile Readiness Assessment[0m
+
+This [3m[34mReadiness Assessment[0m focuses on organizational, team, and leadership
+readiness across five key dimensions. Each area includes a short description and
+3 yes/no questions. Use it as a kickoff diagnostic or self-check before adopting
+the framework.
+
+[1;34m## [0m[1;34m1. Outcome Thinking[0m
+
+[1m[1;37mAre we focused on value and behavior change, not just delivery?[0m
+
+[36m-[0m [ ] Do we define success in terms of user behavior, business value, or system
+      performance—not just features delivered?
+[36m-[0m [ ] Do we regularly ask [3m[34m“Why does this matter?”[0m before [3m[34m“What are we building?”[0m
+[36m-[0m [ ] Do teams have a clear understanding of the desired outcome before starting
+      work?
+
+[90m>[0m [1m[1;37mIf “yes” to 2 or more[0m: Outcome awareness is emerging.
+
+[1;34m## [0m[1;34m2. Team Autonomy and Cross-Functionality[0m
+
+[1m[1;37mCan teams own the problem, not just execute tasks?[0m
+
+[36m-[0m [ ] Do teams have the skills to explore and deliver without constant handoffs?
+[36m-[0m [ ] Are teams trusted to make solution decisions within clear boundaries?
+[36m-[0m [ ] Do teams work from outcomes or constraints, rather than prewritten
+      tickets?
+
+[90m>[0m [1m[1;37mIf “yes” to 2 or more[0m: Autonomy foundations are in place.
+
+[1;34m## [0m[1;34m3. Evidence-Driven Culture[0m
+
+[1m[1;37mAre decisions grounded in learning from users and data?[0m
+
+[36m-[0m [ ] Do we treat plans as hypotheses that can change based on new learning?
+[36m-[0m [ ] Are experiments, metrics, or real-world signals used to guide work?
+[36m-[0m [ ] Do leaders welcome evidence that challenges assumptions?
+
+[90m>[0m [1m[1;37mIf “yes” to 2 or more[0m: Culture supports evidence-based work.
+
+[1;34m## [0m[1;34m4. Psychological Safety and Learning[0m
+
+[1m[1;37mCan people speak up, learn from failure, and improve continuously?[0m
+
+[36m-[0m [ ] Are retrospectives or reviews blameless, structured, and regularly held?
+[36m-[0m [ ] Can team members safely admit mistakes or raise concerns?
+[36m-[0m [ ] Are failures framed as learning opportunities, not performance gaps?
+
+[90m>[0m [1m[1;37mIf “yes” to 2 or more[0m: A learning environment exists.
+
+[1;34m## [0m[1;34m5. Leadership as Enabler[0m
+
+[1m[1;37mDo leaders guide through intent and remove blockers?[0m
+
+[36m-[0m [ ] Are leaders setting direction through desired outcomes—not features or
+      task lists?
+[36m-[0m [ ] Do managers act more as sponsors and coaches than controllers?
+[36m-[0m [ ] Is governance light, adaptive, and supportive of learning and change?
+
+[90m>[0m [1m[1;37mIf “yes” to 2 or more[0m: Leadership is aligned with OBAF principles.
+
+[1;34m## [0m[1;34mScoring Summary[0m
+
+[36m-[0m [1m[1;37m4–5 areas with “2 or more YES answers”[0m: You're ready to pilot The
+  Outcome-Based Agile Framework.
+[36m-[0m [1m[1;37m2–3 areas[0m: Start with a small team or experiment and invest in coaching.
+[36m-[0m [1m[1;37m0–1 areas[0m: Begin with mindset and cultural groundwork before rollout.
+
+[1;32m# [0m[1;32mFacilitation Guide[0m
+
+[36m1.[0m [1m[1;37mKickoff Workshop:[0m Define the outcomes, clarify the purpose behind each
+   outcome, surface constraints, and establish team autonomy
+[36m2.[0m [1m[1;37mCadence Design:[0m Establish short cycles of delivery and feedback (e.g., 1-2
+   weeks)
+[36m3.[0m [1m[1;37mFeedback Loops:[0m Embed continuous discovery methods (user interviews, A/B
+   tests, analytics reviews)
+[36m4.[0m [1m[1;37mReview Rituals:[0m Use retrospectives in the form of AARs to focus on what was
+   planned, what happened, why it happened, and what was learned (see Tenet 10
+   for full AAR structure)
+[36m5.[0m [1m[1;37mLeadership Coaching:[0m Train sponsors and managers to support outcome framing,
+   not output control
+
+[1;34m## [0m[1;34mSimple Process Overview[0m
+
+[36m1.[0m [1m[1;37mInput:[0m Outcome + Constraints
+[36m2.[0m [1m[1;37mProcess:[0m Discovery + Delivery (Iterative)
+[36m3.[0m [1m[1;37mOutput:[0m Validated Experiments, Prototypes, and Releases
+[36m4.[0m [1m[1;37mOutcome:[0m Real-world change (measured)
+[36m5.[0m [1m[1;37mFeedback Loop:[0m After Action Reviews (AARs) inform learning and next steps
+
+[1;34m## [0m[1;34mKey Reminders[0m
+
+[36m-[0m If you are writing a solution before exploring the problem, pause.
+[36m-[0m If requirements are treated as fixed outputs, reframe them as boundaries.
+[36m-[0m If retrospectives assign blame, reset the culture.
+[36m-[0m If decisions ignore evidence, restart the discovery.
+
+[1;34m## [0m[1;34mChecklists[0m
+
+These ten checklists—each with five concise, actionable points—are designed to
+support kickoff meetings, initial workshops, or the launch of new outcomes
+within established teams. They help ensure clarity, alignment, and momentum
+across a range of critical topics:
+
+[36m1.[0m Clarity and Alignment on Outcomes
+[36m2.[0m Lightweight Outcome Metrics
+[36m3.[0m Discovery Embedded in the Work
+[36m4.[0m Teams Own Outcomes, Not Tasks
+[36m5.[0m Reframing Requirements as Constraints
+[36m6.[0m Structuring After Action Reviews (AARs)
+[36m7.[0m Governance That Enables, Not Controls
+[36m8.[0m Organizing Around Shared Outcomes
+[36m9.[0m Leadership as Outcome Enablers
+[36m10.[0m Organizational Agility Support
+
+[1;35m### [0m[1;35m1. Outcome Definition and Framing[0m
+
+[36m-[0m [ ] Is the outcome expressed as a change in behavior, business result, or
+      system capability?
+[36m-[0m [ ] Has the [3m[34mpurpose[0m of the outcome been made explicit (e.g., why it matters to
+      users, teams, or strategy)?
+[36m-[0m [ ] Have the relevant quality attributes been identified (e.g., usability,
+      security)?
+[36m-[0m [ ] Is the outcome flexible in [3m[34mhow[0m it’s achieved, but firm in [3m[34mwhy[0m it matters?
+[36m-[0m [ ] Have success signals (qualitative or quantitative) been defined?
+
+[1;35m### [0m[1;35m2. Measurement and Evidence[0m
+
+[36m-[0m [ ] Is there a measurable signal for outcome progress (e.g., a proxy,
+      heuristic, or direct metric)?
+[36m-[0m [ ] Can the signal be tracked continuously or in short cycles?
+[36m-[0m [ ] Are stakeholders aligned on what “evidence” looks like?
+[36m-[0m [ ] Are teams using the data to adjust their approach, not just report status?
+[36m-[0m [ ] Are metrics viewed as signals to explore, not KPIs to hit blindly?
+
+[1;35m### [0m[1;35m3. Continuous Discovery Integration[0m
+
+[36m-[0m [ ] Are discovery activities happening in parallel with delivery?
+[36m-[0m [ ] Is learning from experiments (e.g., A/B tests, prototypes) captured?
+[36m-[0m [ ] Do discovery insights influence next steps or pivot decisions?
+[36m-[0m [ ] Are assumptions treated as hypotheses, not facts?
+[36m-[0m [ ] Are users and stakeholders engaged early and often?
+
+[1;35m### [0m[1;35m4. Team Autonomy and Problem Ownership[0m
+
+[36m-[0m [ ] Do teams start with a problem, not a backlog of predefined tasks?
+[36m-[0m [ ] Can teams adjust scope and solutions to achieve outcomes?
+[36m-[0m [ ] Are cross-functional skills available within the team?
+[36m-[0m [ ] Is problem framing part of team planning?
+[36m-[0m [ ] Are teams trusted to challenge the framing of outcomes if needed?
+
+[1;35m### [0m[1;35m5. Constraints and Boundaries[0m
+
+[36m-[0m [ ] Have non-negotiable constraints (technical, regulatory, ethical) been
+      documented?
+[36m-[0m [ ] Are constraints used to shape exploration, not dictate outputs?
+[36m-[0m [ ] Is there a shared understanding of what can and cannot change?
+[36m-[0m [ ] Are teams enabled to discover the best solution within those constraints?
+[36m-[0m [ ] Do constraints evolve with discovery if context changes?
+
+[1;35m### [0m[1;35m6. Blameless Retrospectives and Learning Culture[0m
+
+[36m-[0m [ ] Are retrospectives structured around [3m[34mWhat was planned? What happened? Why?[0m
+      [3m[34mWhat did we learn?[0m
+[36m-[0m [ ] Is participation inclusive and non-hierarchical?
+[36m-[0m [ ] Are learnings documented without names or blame?
+[36m-[0m [ ] Are multiple perspectives explored without forcing consensus?
+[36m-[0m [ ] Do learnings influence future behavior or decisions?
+
+[1;35m### [0m[1;35m7. Governance and Simplicity[0m
+
+[36m-[0m [ ] Are governance practices light and fit-for-purpose?
+[36m-[0m [ ] Are teams free to make technical and design decisions within boundaries?
+[36m-[0m [ ] Is governance focused on learning, not compliance?
+[36m-[0m [ ] Are outcome reviews prioritized over milestone checklists?
+[36m-[0m [ ] Are governance structures adaptive as context changes?
+
+[1;35m### [0m[1;35m8. Coordination Across Teams[0m
+
+[36m-[0m [ ] Are outcomes divided in a way that minimizes cross-team dependencies?
+[36m-[0m [ ] Do teams exposing interfaces (e.g., APIs, services) treat them as
+      contracts?
+[36m-[0m [ ] Is communication structured to match system architecture (Conway’s Law)?
+[36m-[0m [ ] Are shared discovery efforts conducted for cross-cutting concerns?
+[36m-[0m [ ] Are teams encouraged to re-org when friction emerges?
+
+[1;35m### [0m[1;35m9. Leadership and Sponsorship[0m
+
+[36m-[0m [ ] Are leaders setting vision and outcomes, not dictating features?
+[36m-[0m [ ] Do they reward learning, even when it disproves assumptions?
+[36m-[0m [ ] Are they present in retrospectives or discovery reviews?
+[36m-[0m [ ] Are managers being coached on adaptive leadership practices?
+[36m-[0m [ ] Do they protect space for teams to explore and learn?
+
+[1;35m### [0m[1;35m10. Cultural Readiness and Adaptation[0m
+
+[36m-[0m [ ] Is psychological safety actively cultivated?
+[36m-[0m [ ] Are success and failure both treated as learning opportunities?
+[36m-[0m [ ] Are language and metaphors aligned to outcome thinking (e.g., “What
+      problem are we solving?”)?
+[36m-[0m [ ] Is process adaptation encouraged over adherence to rituals?
+[36m-[0m [ ] Is evidence given more weight than authority or tradition?
+
+[1;34m## [0m[1;34mApplying OBAF in Regulated Environments[0m
+
+[90m>[0m This guidance exists to help reformers apply outcome-based thinking in
+[90m>[0m [1m[1;37mnon-ideal contexts[0m, not to justify legacy approaches.
+
+This complementary checklist is intended for teams operating in highly regulated
+environments that require adherence to contracting constraints, phase-gate
+processes, or sequential development cycles such as the V-model. Although these
+conditions are not ideal for agile practices, the checklist helps incorporate
+outcome-based agile thinking within these limitations. It also assists in
+identifying where existing constraints support or conflict with OBAF principles,
+encouraging a gradual shift toward more outcome-focused contracting philosophies
+and practices.
+
+[1;35m### [0m[1;35m1. Frame Regulatory Needs as Immutable Constraints[0m
+
+[36m-[0m [ ] Have all mandatory regulations, standards, or audit requirements been
+      clearly identified and documented as [3m[34mnon-negotiable constraints[0m?
+[36m-[0m [ ] Are these constraints understood by the team as guardrails, not
+      deliverables?
+
+[1;35m### [0m[1;35m2. Treat Compliance Evidence as Outcomes[0m
+
+[36m-[0m [ ] Is the evidence of compliance (e.g., traceability, testing coverage,
+      documentation) framed as part of the outcome definition?
+[36m-[0m [ ] Are compliance deliverables produced iteratively and integrated into the
+      workflow, not left to the end?
+
+[1;35m### [0m[1;35m3. Enable Discovery Within the Boundaries[0m
+
+[36m-[0m [ ] Have areas where flexibility is [3m[34mstill possible[0m (e.g., usability,
+      automation, user workflow) been clearly defined to allow innovation?
+[36m-[0m [ ] Are hypotheses and solution exploration encouraged within the compliance
+      envelope?
+
+[1;35m### [0m[1;35m4. Automate Traceability and Documentation[0m
+
+[36m-[0m [ ] Are tools or lightweight methods in place to automatically capture
+      decision logs, test coverage, change history, or requirement links?
+[36m-[0m [ ] Are compliance artifacts continuously validated instead of
+      batch-generated?
+
+[1;35m### [0m[1;35m5. Engage Risk and Compliance as Learning Partners[0m
+
+[36m-[0m [ ] Are compliance/risk officers included early in framing outcomes and
+      reviewing experiments?
+[36m-[0m [ ] Is the compliance team encouraged to collaborate in defining what [3m[34mevidence[0m
+      of safety or control looks like—rather than dictating process?
+
+[1;32m# [0m[1;32mSummary[0m
+
+Outcome-Based Agile is not a methodology; it is a recommitment to what agility
+was always meant to be: adaptive, user-centered, and value-focused. It is a call
+to drop the illusion of control in favor of the pursuit of clarity, progress,
+and real-world impact.
+
+[1m[1;37mOutcomes, not outputs. Always.[0m
+
+[1;32m# [0m[1;32mSignatories[0m
+
+[36m-[0m [3m[34mMichel Blomgren [0m[4m[1;34msa6mwa@gmail.com[0m[3m[34m (2025-04-26)[0m

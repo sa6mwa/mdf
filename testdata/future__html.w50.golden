@@ -1,0 +1,7 @@
+[1;32m# [0m[1;32mInline and block HTML[0m
+
+Inline HTML: <span class="note">note</span> and
+<strong>strong</strong>.
+
+<div class="block"> <p>Block HTML paragraph.</p>
+</div>

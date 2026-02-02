@@ -1,0 +1,11 @@
+[1;32m# [0m[1;32mLinkify (GFM)[0m
+
+Bare URLs should be linkified:
+
+[4m[1;34mhttp://example.com[0m
+[4m[1;34mhttps://example.com/path?q=1&x=2[0m
+[4m[1;34mhttp://www.example.org[0m
+
+Bare emails:
+
+[4m[1;34mme@example.com[0m

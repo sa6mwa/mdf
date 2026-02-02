@@ -1,0 +1,6 @@
+[1;32m# [0m[1;32mFuture markdown features[0m
+
+This folder contains Markdown samples that are [3m[34mnot yet[0m
+supported by the streaming renderer. Goldens for these files
+are generated with the goldmark+GFM renderer to document
+expected behavior once we implement them.

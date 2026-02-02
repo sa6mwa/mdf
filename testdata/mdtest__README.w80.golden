@@ -1,0 +1,25 @@
+[1;32m# [0m[1;32mMarkdown Test File[0m
+
+[1m[1;37mSee the raw source of [0m[1m[1;37m[4m[1;34mTEST.md[0m
+([90mhttps://raw.githubusercontent.com/mxstbr/markdown-test-file/master/TEST.md[0m)[1m[1;37m for[0m
+[1m[1;37mthe deets![0m ([4m[1;34mthis is the test file rendered[0m ([90m./TEST.md[0m))
+
+This repo contains a markdown file which covers a lot of the syntax. We use it
+for testing our markdown support.
+
+[1;34m## [0m[1;34mInspiration[0m
+
+The file is based on [4m[1;34mthe source of John Gruber's Markdown Syntax page[0m
+([90mhttps://daringfireball.net/projects/markdown/syntax.text[0m) ([4m[1;34mthis is the page[0m
+[4m[1;34mrendered[0m ([90mhttps://daringfireball.net/projects/markdown/syntax[0m)) with all the
+HTML and some more complex stuff removed. (if you want to support the full
+entirety of Markdown we'd recommend just using the full page instead of this
+shortened version)
+
+Full credits for that idea go to [4m[1;34mthis StackOverflow question[0m
+(https://stackoverflow.com/questions/2238012/need-a-sufficiently-long-complex-ma
+rkdown-document-for-performance-testing).
+
+[1;34m## [0m[1;34mLicense[0m
+
+This repo is licensed under the MIT License, Copyright © 2017 Space Program Inc.

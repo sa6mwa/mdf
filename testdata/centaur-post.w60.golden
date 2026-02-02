@@ -1,0 +1,106 @@
+[1;32m# [0m[1;32mThe Centaur Manifest[0m
+
+Most teams don’t actually have a "speed" problem. They have
+a [3m[34mchange fear[0m problem.
+
+Not because people are timid, but because the system doesn’t
+make truth cheap. When a change lands, nobody can quickly
+answer the questions that matter: What did we intend? What
+did we break? How do we know? What’s the smallest experiment
+that falsifies the wrong path?
+
+The Centaur Manifest is a direct response to that reality.
+It’s not a manifest about hype. It’s a compact operating
+doctrine for small, high-leverage teams that want to move
+fast [3m[34mand[0m stay coherent - especially when AI agents can
+multiply both throughput and variance.
+
+[4m[1;34mhttps://pkt.systems/centaur.md[0m
+([90mhttps://pkt.systems/centaur.md[0m)
+
+[1;34m## [0m[1;34mThe punchline[0m
+
+There’s a framing that lands with both engineers and
+executives because it maps to what buyers already value:
+
+What you want is not "more automation" and it’s not "more
+process." You want [1m[1;37mself-verifying systems[0m - software
+designed so meaningful behavior can be exercised
+deterministically, observed precisely, and falsified
+quickly. The value is simple and brutal: you can change the
+system without breaking it, and you can do that with fewer
+people.
+
+That’s the Centaur Manifest’s center of gravity.
+
+It pushes you away from outer-loop, slow, environment-heavy
+feedback (the kind that makes organizations feel safe while
+staying slow), and toward inner-loop, high-signal feedback -
+fast enough that humans [3m[34mand[0m agents can run it repeatedly
+until reality agrees.
+
+[1;34m## [0m[1;34mWhy this matters even more with AI[0m
+
+AI increases two things at once: output and entropy.
+
+You can generate more code, explore more solutions, and
+iterate more rapidly. But you can also generate more subtle
+regressions, more integration drift, more "it compiled, ship
+it" optimism. The Centaur approach doesn’t deny the speed;
+it makes speed safe by insisting that evidence dominates
+assertion.
+
+The Manifest is essentially saying: if execution is cheap,
+then [1m[1;37mproof becomes the product[0m. Not proofs in the academic
+sense - proofs in the engineering sense: executable
+evidence, crisp invariants, and fast falsification.
+
+[1;34m## [0m[1;34mMake it legible as architecture, not "tooling"[0m
+
+If you pitch this wrong, people will mentally file it under
+"testing," "CI," or "DevOps." That’s a category error.
+
+The Manifest is about architecture and feedback topology:
+how you shape seams, interfaces, and invariants so the
+system becomes easy to exercise, easy to observe, and hard
+to accidentally break. In practice, it’s the difference
+between a system that demands committees to feel safe and a
+system that [3m[34mproduces evidence[0m to be safe.
+
+That’s why the centaur framing is powerful: it doesn’t
+require a giant transformation. It’s a way for a small unit
+to operate with high integrity and high velocity inside any
+organization.
+
+[1;34m## [0m[1;34mWhat you get if you adopt the doctrine[0m
+
+You don’t "implement the Centaur Manifest." You start
+behaving like it’s true, and the organization notices the
+results.
+
+The result looks like this: tighter intent, fewer
+coordination handoffs, less review drama, fewer brittle
+releases, faster onboarding, and a dramatic drop in the cost
+of answering "are we sure?" It’s not that you eliminate
+risk; you eliminate [3m[34munknown risk[0m by making verification
+routine.
+
+And yes - this is exactly what makes AI agents genuinely
+useful. Agents are strong when the loop is runnable,
+deterministic, and diagnostic. The Manifest is a blueprint
+for building that kind of loop into how you ship.
+
+[1;34m## [0m[1;34mUse it as a wedge[0m
+
+Read the Centaur Manifest and share it with whoever owns
+delivery quality (tech lead, architect, product lead). Then
+pick one subsystem and make it "centaur-ready": embeddable
+flows, deterministic tests, executable contracts, and
+telemetry that answers real questions.
+
+That’s how the doctrine wins: not with slogans, but with a
+visible before/after in how safely and quickly you can
+change a real system.
+
+The Centaur Manifest is short on purpose. It’s meant to be
+portable, quotable, and operational.

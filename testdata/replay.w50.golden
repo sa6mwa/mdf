@@ -1,0 +1,30 @@
+[1;32m# [0m[1;32mReplay test[0m
+
+This is some text before the replay test. It's on
+a single line so it should wrap as it extends more
+than 80 columns.
+
+[32mcode line 1[0m
+[32mcode line 2[0m
+
+not code anymore
+
+[36m-[0m list item still list and still list
+
+Not list, normal paragraph.
+
+[90m>[0m [1m[3m[1;35mFinal Note:[0m
+[90m>[0m
+[90m>[0m Well, that's it folks.
+[90m>[0m
+[90m>[0m [36m-[0m This is a list inside a blockquote.
+[90m>[0m [36m-[0m This is another item in that list.
+[90m>[0m [36m-[0m And this is a final long line without line
+[90m>[0m   breaks that is flowing beyond 80 columns.
+[90m>[0m
+[90m>[0m This is the final line in the blockquote which
+[90m>[0m is not a list item and it also flows beyond 80
+[90m>[0m columns.
+
+And this is the final paragraph. It's not above 80
+cols, but more than 70.

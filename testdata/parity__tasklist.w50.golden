@@ -1,0 +1,5 @@
+[36m-[0m [ ] Task one wraps across lines to test live
+      streaming wrap behavior in lists.
+[36m-[0m [x] Done task with [3m[34memphasis[0m and [1m[1;37mstrong[0m and [35mcode[0m.
+  [36m-[0m [ ] Nested task continues with more text to
+        wrap properly.

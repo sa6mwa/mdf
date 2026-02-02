@@ -1,0 +1,7 @@
+[1;32m# [0m[1;32mTables (GFM)[0m
+
+[1m[1;32mCol A[0m | [1m[1;32mCol B[0m
+A1 | B1
+A2 | B2
+Longer cell that should wrap at narrower widths |
+B3

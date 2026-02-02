@@ -1,0 +1,327 @@
+[1;32m# [0m[1;32mMarkdown: Syntax[0m
+
+[36m-[0m [4m[1;34mOverview[0m ([90m#overview[0m)
+  [36m-[0m [4m[1;34mPhilosophy[0m ([90m#philosophy[0m)
+  [36m-[0m [4m[1;34mInline HTML[0m ([90m#html[0m)
+  [36m-[0m [4m[1;34mAutomatic Escaping for Special Characters[0m ([90m#autoescape[0m)
+[36m-[0m [4m[1;34mBlock Elements[0m ([90m#block[0m)
+  [36m-[0m [4m[1;34mParagraphs and Line Breaks[0m ([90m#p[0m)
+  [36m-[0m [4m[1;34mHeaders[0m ([90m#header[0m)
+  [36m-[0m [4m[1;34mBlockquotes[0m ([90m#blockquote[0m)
+  [36m-[0m [4m[1;34mLists[0m ([90m#list[0m)
+  [36m-[0m [4m[1;34mCode Blocks[0m ([90m#precode[0m)
+  [36m-[0m [4m[1;34mHorizontal Rules[0m ([90m#hr[0m)
+[36m-[0m [4m[1;34mSpan Elements[0m ([90m#span[0m)
+  [36m-[0m [4m[1;34mLinks[0m ([90m#link[0m)
+  [36m-[0m [4m[1;34mEmphasis[0m ([90m#em[0m)
+  [36m-[0m [4m[1;34mCode[0m ([90m#code[0m)
+  [36m-[0m [4m[1;34mImages[0m ([90m#img[0m)
+[36m-[0m [4m[1;34mMiscellaneous[0m ([90m#misc[0m)
+  [36m-[0m [4m[1;34mBackslash Escapes[0m ([90m#backslash[0m)
+  [36m-[0m [4m[1;34mAutomatic Links[0m ([90m#autolink[0m)
+
+[1m[1;37mNote:[0m This document is itself written using Markdown; you
+can [4m[1;34msee the source for it by adding '.text' to the URL[0m
+([90m/projects/markdown/syntax.text[0m).
+
+[1;34m## [0m[1;34mOverview[0m
+
+[1;35m### [0m[1;35mPhilosophy[0m
+
+Markdown is intended to be as easy-to-read and easy-to-write
+as is feasible.
+
+Readability, however, is emphasized above all else. A
+Markdown-formatted document should be publishable as-is, as
+plain text, without looking like it's been marked up with
+tags or formatting instructions. While Markdown's syntax has
+been influenced by several existing text-to-HTML filters --
+including [4m[1;34mSetext[0m
+([90mhttp://docutils.sourceforge.net/mirror/setext.html[0m), [4m[1;34matx[0m
+([90mhttp://www.aaronsw.com/2002/atx/[0m), [4m[1;34mTextile[0m
+([90mhttp://textism.com/tools/textile/[0m), [4m[1;34mreStructuredText[0m
+([90mhttp://docutils.sourceforge.net/rst.html[0m), [4m[1;34mGrutatext[0m
+([90mhttp://www.triptico.com/software/grutatxt.html[0m), and [4m[1;34mEtText[0m
+([90mhttp://ettext.taint.org/doc/[0m) -- the single biggest source
+of inspiration for Markdown's syntax is the format of plain
+text email.
+
+[1;34m## [0m[1;34mBlock Elements[0m
+
+[1;35m### [0m[1;35mParagraphs and Line Breaks[0m
+
+A paragraph is simply one or more consecutive lines of text,
+separated by one or more blank lines. (A blank line is any
+line that looks like a blank line -- a line containing
+nothing but spaces or tabs is considered blank.) Normal
+paragraphs should not be indented with spaces or tabs.
+
+The implication of the "one or more consecutive lines of
+text" rule is that Markdown supports "hard-wrapped" text
+paragraphs. This differs significantly from most other
+text-to-HTML formatters (including Movable Type's "Convert
+Line Breaks" option) which translate every line break
+character in a paragraph into a [35m<br />[0m tag.
+
+When you [3m[34mdo[0m want to insert a [35m<br />[0m break tag using
+Markdown, you end a line with two or more spaces, then type
+return.
+
+[1;35m### [0m[1;35mHeaders[0m
+
+Markdown supports two styles of headers, [Setext] [1] and
+[atx] [2].
+
+Optionally, you may "close" atx-style headers. This is
+purely cosmetic -- you can use this if you think it looks
+better. The closing hashes don't even need to match the
+number of hashes used to open the header. (The number of
+opening hashes determines the header level.)
+
+[1;35m### [0m[1;35mBlockquotes[0m
+
+Markdown uses email-style [35m>[0m characters for blockquoting. If
+you're familiar with quoting passages of text in an email
+message, then you know how to create a blockquote in
+Markdown. It looks best if you hard wrap the text and put a
+[35m>[0m before every line:
+
+[90m>[0m This is a blockquote with two paragraphs. Lorem ipsum
+[90m>[0m dolor sit amet, consectetuer adipiscing elit. Aliquam
+[90m>[0m hendrerit mi posuere lectus. Vestibulum enim wisi, viverra
+[90m>[0m nec, fringilla in, laoreet vitae, risus.
+[90m>[0m
+[90m>[0m Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+[90m>[0m Suspendisse id sem consectetuer libero luctus adipiscing.
+
+Markdown allows you to be lazy and only put the [35m>[0m before the
+first line of a hard-wrapped paragraph:
+
+[90m>[0m This is a blockquote with two paragraphs. Lorem ipsum
+[90m>[0m dolor sit amet, consectetuer adipiscing elit. Aliquam
+[90m>[0m hendrerit mi posuere lectus. Vestibulum enim wisi, viverra
+[90m>[0m nec, fringilla in, laoreet vitae, risus.
+
+[90m>[0m Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+[90m>[0m Suspendisse id sem consectetuer libero luctus adipiscing.
+
+Blockquotes can be nested (i.e. a
+blockquote-in-a-blockquote) by adding additional levels of
+[35m>[0m:
+
+[90m>[0m This is the first level of quoting.
+[90m>[0m
+[90m>[0m [90m>[0m This is nested blockquote.
+[90m>[0m
+[90m>[0m Back to the first level.
+
+Blockquotes can contain other Markdown elements, including
+headers, lists, and code blocks:
+
+[90m>[0m [1;34m## [0m[1;34mThis is a header.[0m
+[90m>[0m
+[90m>[0m [36m1.[0m This is the first list item.
+[90m>[0m [36m2.[0m This is the second list item.
+[90m>[0m
+[90m>[0m Here's some example code:
+[90m>[0m
+[90m>[0m [32mreturn shell_exec("echo $input | $markdown_script");[0m
+
+Any decent text editor should make email-style quoting easy.
+For example, with BBEdit, you can make a selection and
+choose Increase Quote Level from the Text menu.
+
+[1;35m### [0m[1;35mLists[0m
+
+Markdown supports ordered (numbered) and unordered
+(bulleted) lists.
+
+Unordered lists use asterisks, pluses, and hyphens --
+interchangably -- as list markers:
+
+[36m-[0m Red
+[36m-[0m Green
+[36m-[0m Blue
+
+is equivalent to:
+
+[36m-[0m Red
+[36m-[0m Green
+[36m-[0m Blue
+
+and:
+
+[36m-[0m Red
+[36m-[0m Green
+[36m-[0m Blue
+
+Ordered lists use numbers followed by periods:
+
+[36m1.[0m Bird
+[36m2.[0m McHale
+[36m3.[0m Parish
+
+It's important to note that the actual numbers you use to
+mark the list have no effect on the HTML output Markdown
+produces. The HTML Markdown produces from the above list is:
+
+If you instead wrote the list in Markdown like this:
+
+[36m1.[0m Bird
+[36m2.[0m McHale
+[36m3.[0m Parish
+
+or even:
+
+[36m3.[0m Bird
+[36m4.[0m McHale
+[36m5.[0m Parish
+
+you'd get the exact same HTML output. The point is, if you
+want to, you can use ordinal numbers in your ordered
+Markdown lists, so that the numbers in your source match the
+numbers in your published HTML. But if you want to be lazy,
+you don't have to.
+
+To make lists look nice, you can wrap items with hanging
+indents:
+
+[36m-[0m Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+  Aliquam hendrerit mi posuere lectus. Vestibulum enim wisi,
+  viverra nec, fringilla in, laoreet vitae, risus.
+[36m-[0m Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+  Suspendisse id sem consectetuer libero luctus adipiscing.
+
+But if you want to be lazy, you don't have to:
+
+[36m-[0m Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+  Aliquam hendrerit mi posuere lectus. Vestibulum enim wisi,
+  viverra nec, fringilla in, laoreet vitae, risus.
+[36m-[0m Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
+  Suspendisse id sem consectetuer libero luctus adipiscing.
+
+List items may consist of multiple paragraphs. Each
+subsequent paragraph in a list item must be indented by
+either 4 spaces or one tab:
+
+[36m1.[0m This is a list item with two paragraphs. Lorem ipsum
+   dolor sit amet, consectetuer adipiscing elit. Aliquam
+   hendrerit mi posuere lectus.
+
+   Vestibulum enim wisi, viverra nec, fringilla in, laoreet
+   vitae, risus. Donec sit amet nisl. Aliquam semper ipsum
+   sit amet velit.
+
+[36m2.[0m Suspendisse id sem consectetuer libero luctus adipiscing.
+
+It looks nice if you indent every line of the subsequent
+paragraphs, but here again, Markdown will allow you to be
+lazy:
+
+[36m-[0m This is a list item with two paragraphs.
+
+  This is the second paragraph in the list item. You're only
+  required to indent the first line. Lorem ipsum dolor sit
+  amet, consectetuer adipiscing elit.
+
+[36m-[0m Another item in the same list.
+
+To put a blockquote within a list item, the blockquote's [35m>[0m
+delimiters need to be indented:
+
+[36m-[0m A list item with a blockquote:
+
+  [90m>[0m This is a blockquote inside a list item.
+
+To put a code block within a list item, the code block needs
+to be indented [3m[34mtwice[0m -- 8 spaces or two tabs:
+
+[36m-[0m A list item with a code block:
+
+  [32m<code goes here>[0m
+
+[1;35m### [0m[1;35mCode Blocks[0m
+
+Pre-formatted code blocks are used for writing about
+programming or markup source code. Rather than forming
+normal paragraphs, the lines of a code block are interpreted
+literally. Markdown wraps a code block in both [35m<pre>[0m and
+[35m<code>[0m tags.
+
+To produce a code block in Markdown, simply indent every
+line of the block by at least 4 spaces or 1 tab.
+
+This is a normal paragraph:
+
+[32mThis is a code block.[0m
+
+Here is an example of AppleScript:
+
+[32mtell application "Foo"[0m
+[32m    beep[0m
+[32mend tell[0m
+
+A code block continues until it reaches a line that is not
+indented (or the end of the article).
+
+Within a code block, ampersands ([35m&[0m) and angle brackets ([35m<[0m
+and [35m>[0m) are automatically converted into HTML entities. This
+makes it very easy to include example HTML source code using
+Markdown -- just paste it and indent it, and Markdown will
+handle the hassle of encoding the ampersands and angle
+brackets. For example, this:
+
+[32m<div class="footer">[0m
+[32m    &copy; 2004 Foo Corporation[0m
+[32m</div>[0m
+
+Regular Markdown syntax is not processed within code blocks.
+E.g., asterisks are just literal asterisks within a code
+block. This means it's also easy to use Markdown to write
+about Markdown's own syntax.
+
+[32mtell application "Foo"[0m
+[32m    beep[0m
+[32mend tell[0m
+
+[1;34m## [0m[1;34mSpan Elements[0m
+
+[1;35m### [0m[1;35mLinks[0m
+
+Markdown supports two style of links: [3m[34minline[0m and [3m[34mreference[0m.
+
+In both styles, the link text is delimited by [square
+brackets].
+
+To create an inline link, use a set of regular parentheses
+immediately after the link text's closing square bracket.
+Inside the parentheses, put the URL where you want the link
+to point, along with an [3m[34moptional[0m title for the link,
+surrounded in quotes. For example:
+
+This is [4m[1;34man example[0m ([90mhttp://example.com/[0m) inline link.
+
+[4m[1;34mThis link[0m ([90mhttp://example.net/[0m) has no title attribute.
+
+[1;35m### [0m[1;35mEmphasis[0m
+
+Markdown treats asterisks ([35m*[0m) and underscores ([35m_[0m) as
+indicators of emphasis. Text wrapped with one [35m*[0m or [35m_[0m will be
+wrapped with an HTML [35m<em>[0m tag; double [35m*[0m's or [35m_[0m's will be
+wrapped with an HTML [35m<strong>[0m tag. E.g., this input:
+
+[3m[34msingle asterisks[0m
+
+[3m[34msingle underscores[0m
+
+[1m[1;37mdouble asterisks[0m
+
+[1m[1;37mdouble underscores[0m
+
+[1;35m### [0m[1;35mCode[0m
+
+To indicate a span of code, wrap it with backtick quotes ([35m`[0m
+). Unlike a pre-formatted code block, a code span indicates
+code within a normal paragraph. For example:
+
+Use the [35mprintf()[0m function.

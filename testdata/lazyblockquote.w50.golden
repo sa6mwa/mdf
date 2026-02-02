@@ -1,0 +1,59 @@
+[1;35m### [0m[1;35mBlockquotes[0m
+
+Markdown uses email-style [35m>[0m characters for
+blockquoting. If you're familiar with quoting
+passages of text in an email message, then you
+know how to create a blockquote in Markdown. It
+looks best if you hard wrap the text and put a [35m>[0m
+before every line:
+
+[90m>[0m This is a blockquote with two paragraphs. Lorem
+[90m>[0m ipsum dolor sit amet, consectetuer adipiscing
+[90m>[0m elit. Aliquam hendrerit mi posuere lectus.
+[90m>[0m Vestibulum enim wisi, viverra nec, fringilla in,
+[90m>[0m laoreet vitae, risus.
+[90m>[0m
+[90m>[0m Donec sit amet nisl. Aliquam semper ipsum sit
+[90m>[0m amet velit. Suspendisse id sem consectetuer
+[90m>[0m libero luctus adipiscing.
+
+Markdown allows you to be lazy and only put the [35m>[0m
+before the first line of a hard-wrapped paragraph:
+
+[90m>[0m This is a blockquote with two paragraphs. Lorem
+[90m>[0m ipsum dolor sit amet, consectetuer adipiscing
+[90m>[0m elit. Aliquam hendrerit mi posuere lectus.
+[90m>[0m Vestibulum enim wisi, viverra nec, fringilla in,
+[90m>[0m laoreet vitae, risus.
+
+[90m>[0m Donec sit amet nisl. Aliquam semper ipsum sit
+[90m>[0m amet velit. Suspendisse id sem consectetuer
+[90m>[0m libero luctus adipiscing.
+
+Blockquotes can be nested (i.e. a
+blockquote-in-a-blockquote) by adding additional
+levels of [35m>[0m:
+
+[90m>[0m This is the first level of quoting.
+[90m>[0m
+[90m>[0m [90m>[0m This is nested blockquote.
+[90m>[0m
+[90m>[0m Back to the first level.
+
+Blockquotes can contain other Markdown elements,
+including headers, lists, and code blocks:
+
+[90m>[0m [1;34m## [0m[1;34mThis is a header.[0m
+[90m>[0m
+[90m>[0m [36m1.[0m This is the first list item.
+[90m>[0m [36m2.[0m This is the second list item.
+[90m>[0m
+[90m>[0m Here's some example code:
+[90m>[0m
+[90m>[0m [32mreturn shell_exec([0m
+[90m>[0m [32m"echo $input | $markdown_script");[0m
+
+Any decent text editor should make email-style
+quoting easy. For example, with BBEdit, you can
+make a selection and choose Increase Quote Level
+from the Text menu.
