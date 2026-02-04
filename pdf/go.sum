@@ -9,5 +9,5 @@ github.com/muesli/reflow v0.3.0 h1:IFsN6K9NfGtjeggFP+68I4chLZV2yIKsXJFNZ+eWh6s=
 github.com/muesli/reflow v0.3.0/go.mod h1:pbwTDkVPibjO2kyvBQRBxTWEEGDGq0FlB1BIKtnHY/8=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
-pkt.systems/mdf v0.0.0-20260127133454-d23b844ee796 h1:IckqubOqDDwLOvF08xcZ040UOY/Q9OB7nV84cRVDRfA=
-pkt.systems/mdf v0.0.0-20260127133454-d23b844ee796/go.mod h1:cBmNzjxVquwgQWDICcmA7ZBaaFK8+lAumpPesp8to+Y=
+pkt.systems/mdf v0.0.2 h1:Qv7c4rY/vJNmhKEN4pUBMlVaSn/43PWJH2oALRFO86k=
+pkt.systems/mdf v0.0.2/go.mod h1:9Ia5uRqTFITMB3GqhDZKBflRF0VWAaQexDQZFpzCAo4=
