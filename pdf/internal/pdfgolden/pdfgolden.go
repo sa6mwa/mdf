@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"pkt.systems/mdf"
 	"pkt.systems/mdf/pdf"
+	"pkt.systems/mdf/pdf/testdata"
 	"regexp"
 	"sort"
 	"strconv"
@@ -31,30 +32,15 @@ type Sample struct {
 	Name string
 }
 
-// FindModuleRoot locates the nearest directory containing go.mod.
-func FindModuleRoot() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	dir := wd
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return "", errors.New("go.mod not found")
+// FindTestdataRoot locates the pdf testdata module root.
+func FindTestdataRoot() (string, error) {
+	return testdata.Root()
 }
 
 // CollectSamples finds markdown samples eligible for PDF goldens.
 func CollectSamples(root string) ([]Sample, error) {
 	var samples []Sample
-	sampleRoot := filepath.Join(root, "testdata")
+	sampleRoot := root
 	err := filepath.WalkDir(sampleRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -66,9 +52,6 @@ func CollectSamples(root string) ([]Sample, error) {
 				if rel == "future" || strings.HasPrefix(rel, "future/") {
 					return filepath.SkipDir
 				}
-			}
-			if strings.Contains(filepath.ToSlash(path), "testdata/future/") {
-				return filepath.SkipDir
 			}
 			return nil
 		}

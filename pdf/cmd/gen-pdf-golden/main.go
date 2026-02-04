@@ -16,9 +16,9 @@ func main() {
 		os.Exit(2)
 	}
 	nicePath, _ := exec.LookPath("nice")
-	root, err := pdfgolden.FindModuleRoot()
+	root, err := pdfgolden.FindTestdataRoot()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "find module root: %v\n", err)
+		fmt.Fprintf(os.Stderr, "find testdata root: %v\n", err)
 		os.Exit(1)
 	}
 	samples, err := pdfgolden.CollectSamples(root)
@@ -31,7 +31,7 @@ func main() {
 		os.Exit(1)
 	}
 	fontSizes := []int{18, 12, 9}
-	goldenDir := filepath.Join(root, "testdata", "golden")
+	goldenDir := filepath.Join(root, "golden")
 
 	for _, sample := range samples {
 		data, err := os.ReadFile(sample.Path)

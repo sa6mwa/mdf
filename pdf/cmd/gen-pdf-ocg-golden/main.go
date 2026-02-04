@@ -15,9 +15,9 @@ import (
 )
 
 func main() {
-	root, err := pdfgolden.FindModuleRoot()
+	root, err := pdfgolden.FindTestdataRoot()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "find module root: %v\n", err)
+		fmt.Fprintf(os.Stderr, "find testdata root: %v\n", err)
 		os.Exit(1)
 	}
 	var out bytes.Buffer
@@ -43,7 +43,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "apply print visibility: %v\n", err)
 		os.Exit(1)
 	}
-	goldenDir := filepath.Join(root, "testdata", "golden")
+	goldenDir := filepath.Join(root, "golden")
 	if err := os.MkdirAll(goldenDir, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "mkdir goldens: %v\n", err)
 		os.Exit(1)
@@ -63,7 +63,7 @@ func main() {
 func ocgConfig(root string) (pdf.Config, error) {
 	cfg := pdf.DefaultConfig()
 	cfg.UseOCGPrintView = true
-	cfg.CornerImagePath = filepath.Join(root, "testdata", "ocg_corner.png")
+	cfg.CornerImagePath = filepath.Join(root, "ocg_corner.png")
 	reg, bold, italic, boldItalic, err := pdf.EmbeddedHackFonts()
 	if err != nil {
 		return pdf.Config{}, err

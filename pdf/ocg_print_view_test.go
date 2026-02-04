@@ -19,14 +19,14 @@ func TestOCGPrintViewHeadingInPrintLayer(t *testing.T) {
 	if _, err := exec.LookPath("pdftoppm"); err != nil {
 		t.Skip("pdftoppm not found in PATH")
 	}
-	root, err := pdfgolden.FindModuleRoot()
+	root, err := pdfgolden.FindTestdataRoot()
 	if err != nil {
-		t.Fatalf("find module root: %v", err)
+		t.Fatalf("find testdata root: %v", err)
 	}
 
 	cfg := pdf.DefaultConfig()
 	cfg.UseOCGPrintView = true
-	cfg.CornerImagePath = filepath.Join(root, "testdata", "ocg_corner.png")
+	cfg.CornerImagePath = filepath.Join(root, "ocg_corner.png")
 	reg, bold, italic, boldItalic, err := pdf.EmbeddedHackFonts()
 	if err != nil {
 		t.Fatalf("embedded fonts: %v", err)
@@ -49,7 +49,7 @@ func TestOCGPrintViewHeadingInPrintLayer(t *testing.T) {
 		t.Fatalf("render pdf: %v", err)
 	}
 
-	goldenDir := filepath.Join(root, "testdata", "golden")
+	goldenDir := filepath.Join(root, "golden")
 	viewPNG, err := renderOCGPNG(out.Bytes())
 	if err != nil {
 		t.Fatalf("render view png: %v", err)

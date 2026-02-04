@@ -16,9 +16,9 @@ func TestPDFGoldens(t *testing.T) {
 		t.Skip("pdftoppm not found in PATH")
 	}
 	nicePath, _ := exec.LookPath("nice")
-	root, err := pdfgolden.FindModuleRoot()
+	root, err := pdfgolden.FindTestdataRoot()
 	if err != nil {
-		t.Fatalf("find module root: %v", err)
+		t.Fatalf("find testdata root: %v", err)
 	}
 	samples, err := pdfgolden.CollectSamples(root)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestPDFGoldens(t *testing.T) {
 		t.Fatalf("no testdata markdown files found")
 	}
 	fontSizes := []int{18, 12, 9}
-	goldenDir := filepath.Join(root, "testdata", "golden")
+	goldenDir := filepath.Join(root, "golden")
 
 	for _, sample := range samples {
 		data, err := os.ReadFile(sample.Path)
