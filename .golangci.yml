@@ -3,6 +3,8 @@ linters:
   disable:
     - errcheck
   exclusions:
+    paths:
+      - ^pdf/gofpdf/
     rules:
       # staticcheck style nits we don't want to chase
       - linters: [staticcheck]
