@@ -1,5 +1,7 @@
 # mdf
 
+<img align="right" src="centaur-manifest.gif" width="300" height="410" alt="mdf example pdf">
+
 Markdown *FAST!* is a high-performance Markdown → ANSI renderer optimized for streaming and terminal reflow, plus a PDF renderer for the same streaming pipeline.
 
 ## Design
@@ -7,18 +9,32 @@ Markdown *FAST!* is a high-performance Markdown → ANSI renderer optimized for 
 - Stream parse from an `io.Reader`.
 - Emit tokens as soon as decisions are made (no line buffering).
 - Wrap only at the final step with ANSI-aware reflow.
+- Zero/near-zero alloc in hot paths.
 - PDF renderer uses the same streaming pipeline: `io.Reader` → tokens → `io.Writer`.
 
-## Demo (ANSI)
+## Installation of CLI
 
 ```bash
-go run ./cmd/mdf-demo -file testdata/agents.md -theme synthwave-84
+go install pkt.systems/mdf/cmd/mdf@latest
+
+# From the repository:
+make
+sudo make install
+```
+
+## CLI example
+
+```bash
+mdf -t synthwave-84 testdata/agents.md
+
+# Generate PDF:
+mdf -o agents.pdf --pdf-font-size 10 https://pkt.systems/centaur.md
 ```
 
 List themes:
 
 ```bash
-go run ./cmd/mdf-demo -list-themes
+mdf --list-themes
 ```
 
 ## SDK: ANSI streaming
@@ -73,7 +89,7 @@ You can use `mdf.Render` directly, or plug your own `mdf.Stream` implementation.
 
 This example shows a full pipeline from OpenAI streaming → mdf → `io.Writer` (stdout or a scrollbuffer).
 The Responses API streams semantic events; the primary text delta event is
-`response.output_text.delta`. citeturn0search0turn0search3
+`response.output_text.delta`.
 
 ```go
 package main
@@ -153,5 +169,5 @@ func streamResponses(ctx context.Context, apiKey, input string) (io.ReadCloser, 
 ```
 
 Notes:
-- Streaming events are typed; for text deltas, listen for `response.output_text.delta`. citeturn0search0turn0search1
-- Set `stream=true` in the Responses request to enable streaming. citeturn0search1
+- Streaming events are typed; for text deltas, listen for `response.output_text.delta`.
+- Set `stream=true` in the Responses request to enable streaming.
