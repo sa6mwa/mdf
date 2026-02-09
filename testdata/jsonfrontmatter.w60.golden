@@ -1,0 +1,4 @@
+[1;32m# [0m[1;32mJSON front-matter[0m
+
+When using [35m;;;[0m as the front-matter separator, it ought to
+indicate that we are dealing with front-matter in [35mjson[0m.

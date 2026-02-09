@@ -1,0 +1,5 @@
+[1;32m# [0m[1;32mToml front-matter[0m
+
+Using [35m+++[0m to separate the content from the front-matter is
+another way to include metadata in a post, but using [35mtoml[0m
+instead.
