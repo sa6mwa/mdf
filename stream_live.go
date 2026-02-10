@@ -125,9 +125,13 @@ func Parse(req ParseRequest) error {
 				var smallOut [utf8.UTFMax * 2]byte
 				clean, rest := sanitizeBytes(smallOut[:], combined)
 				if len(clean) > 0 {
-					if err := parser.feedBytes(req.Stream, clean); err != nil {
-						retErr = fmt.Errorf("parse: %w", err)
-						goto done
+					filtered := parser.frontMatter.process(clean)
+					if len(filtered) > 0 {
+						err := parser.feedBytes(req.Stream, filtered)
+						if err != nil {
+							retErr = fmt.Errorf("parse: %w", err)
+							goto done
+						}
 					}
 				}
 				tailLen = copy(tailBuf[:], rest)
@@ -136,9 +140,13 @@ func Parse(req ParseRequest) error {
 			if len(chunk) > 0 {
 				clean, rest := sanitizeBytes(cleanBuf[:len(chunk)], chunk)
 				if len(clean) > 0 {
-					if err := parser.feedBytes(req.Stream, clean); err != nil {
-						retErr = fmt.Errorf("parse: %w", err)
-						goto done
+					filtered := parser.frontMatter.process(clean)
+					if len(filtered) > 0 {
+						err := parser.feedBytes(req.Stream, filtered)
+						if err != nil {
+							retErr = fmt.Errorf("parse: %w", err)
+							goto done
+						}
 					}
 				}
 				tailLen = copy(tailBuf[:], rest)
@@ -149,6 +157,12 @@ func Parse(req ParseRequest) error {
 				break
 			}
 			retErr = fmt.Errorf("parse: read: %w", err)
+			goto done
+		}
+	}
+	if trailing := parser.frontMatter.finish(); len(trailing) > 0 {
+		if err := parser.feedBytes(req.Stream, trailing); err != nil {
+			retErr = fmt.Errorf("parse: %w", err)
 			goto done
 		}
 	}

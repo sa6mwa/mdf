@@ -43,6 +43,8 @@ type liveParser struct {
 	styles Styles
 	osc8   bool
 
+	frontMatter frontMatterFilter
+
 	lineBuf                   []rune
 	lineBytes                 []byte
 	textArena                 []byte
@@ -158,6 +160,7 @@ func (p *liveParser) Reset(theme Theme, osc8 bool) {
 	}
 	p.styles = theme.Styles()
 	p.osc8 = osc8
+	p.frontMatter.reset()
 	p.lineBuf = p.lineBufArr[:0]
 	p.lineBytes = p.lineBytesArr[:0]
 	p.textArena = p.textArenaArr[:0]
