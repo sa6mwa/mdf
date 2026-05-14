@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,6 +56,32 @@ func TestOpenInputFileAndURL(t *testing.T) {
 	buf, _ = io.ReadAll(reader)
 	if string(buf) != "stream" {
 		t.Fatalf("unexpected http content: %q", string(buf))
+	}
+}
+
+func TestRenderHTML(t *testing.T) {
+	var out bytes.Buffer
+	err := renderHTML(strings.NewReader("# Title\n\nBody\n"), &out, nil, false, pdfConfig{
+		margin:     24,
+		fontSize:   10,
+		lineHeight: 1.2,
+		h1Scale:    2,
+	})
+	if err != nil {
+		t.Fatalf("render html: %v", err)
+	}
+	rendered := out.String()
+	wants := []string{
+		"<!doctype html>",
+		"padding:24pt;",
+		"font-size:10pt;",
+		"line-height:1.2;",
+		"Body",
+	}
+	for _, want := range wants {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("missing %q in rendered HTML", want)
+		}
 	}
 }
 
