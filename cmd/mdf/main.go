@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/term"
 	"pkt.systems/mdf"
+	mdfhtml "pkt.systems/mdf/html"
 	"pkt.systems/mdf/pdf"
 	"pkt.systems/version"
 )
@@ -41,6 +42,7 @@ func main() {
 		listThemes        bool
 		outPath           string
 		boring            bool
+		htmlMode          bool
 		pdfMode           bool
 		pdfPageSize       string
 		pdfMargin         float64
@@ -72,6 +74,7 @@ func main() {
 	flags.BoolVar(&listThemes, "list-themes", false, "List available themes")
 	flags.StringVarP(&outPath, "output", "o", "", "Output file instead of stdout")
 	flags.BoolVarP(&boring, "boring", "b", false, "Generate non-ANSI output or boring PDF")
+	flags.BoolVar(&htmlMode, "html", false, "Generate self-contained HTML instead of ANSI output")
 	flags.BoolVar(&pdfMode, "pdf", false, "Generate a PDF instead of ANSI output")
 	flags.StringVar(&pdfBoldFont, "pdf-bold-font", "", "TTF path for bold font")
 	flags.StringVar(&pdfItalicFont, "pdf-italic-font", "", "TTF path for italic font")
@@ -127,6 +130,14 @@ func main() {
 		fmt.Fprintf(os.Stderr, "warning: output %q ends with .pdf; enabling --pdf\n", outPath)
 		pdfMode = true
 	}
+	if !htmlMode && outPath != "" && strings.HasSuffix(strings.ToLower(outPath), ".html") {
+		fmt.Fprintf(os.Stderr, "warning: output %q ends with .html; enabling --html\n", outPath)
+		htmlMode = true
+	}
+	if pdfMode && htmlMode {
+		fmt.Fprintln(os.Stderr, "choose either --pdf or --html")
+		os.Exit(2)
+	}
 
 	writer, closeOut, err := resolveOutput(outPath)
 	if err != nil {
@@ -169,6 +180,30 @@ func main() {
 			cornerPadding:  pdfCornerPadding,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "render pdf: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if htmlMode {
+		if err := renderHTML(reader, writer, theme, boring, pdfConfig{
+			margin:         pdfMargin,
+			lineHeight:     pdfLineHeight,
+			fontSize:       pdfFontSize,
+			h1Scale:        pdfH1Scale,
+			h2Scale:        pdfH2Scale,
+			h3Scale:        pdfH3Scale,
+			regularFont:    pdfRegularFont,
+			boldFont:       pdfBoldFont,
+			italicFont:     pdfItalicFont,
+			boldItalicFont: pdfBoldItalicFont,
+			headingFont:    pdfHeadingFont,
+			cornerImage:    pdfCornerImage,
+			cornerMaxW:     pdfCornerMaxW,
+			cornerMaxH:     pdfCornerMaxH,
+			cornerPadding:  pdfCornerPadding,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "render html: %v\n", err)
 			os.Exit(1)
 		}
 		return
@@ -299,6 +334,85 @@ func renderPDF(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdf
 	}
 
 	return pdf.Render(pdf.RenderRequest{
+		Reader: r,
+		Writer: w,
+		Theme:  theme,
+		Config: cfg,
+	})
+}
+
+func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdfConfig) error {
+	cfg := mdfhtml.DefaultConfig()
+	if cfgIn.margin > 0 {
+		cfg.Margin = cfgIn.margin
+	}
+	if cfgIn.lineHeight > 0 {
+		cfg.LineHeight = cfgIn.lineHeight
+	}
+	if cfgIn.fontSize > 0 {
+		cfg.FontSize = cfgIn.fontSize
+	}
+	if cfgIn.h1Scale > 0 {
+		cfg.HeadingScale[0] = cfgIn.h1Scale
+	}
+	if cfgIn.h2Scale > 0 {
+		cfg.HeadingScale[1] = cfgIn.h2Scale
+	}
+	if cfgIn.h3Scale > 0 {
+		cfg.HeadingScale[2] = cfgIn.h3Scale
+	}
+	if cfgIn.cornerImage != "" {
+		cfg.CornerImagePath = cfgIn.cornerImage
+	}
+	if cfgIn.cornerMaxW > 0 {
+		cfg.CornerImageMaxWidth = cfgIn.cornerMaxW
+	}
+	if cfgIn.cornerMaxH > 0 {
+		cfg.CornerImageMaxHeight = cfgIn.cornerMaxH
+	}
+	if cfgIn.cornerPadding > 0 {
+		cfg.CornerImagePadding = cfgIn.cornerPadding
+	}
+	cfg.Boring = boring
+
+	reg, bold, italic := strings.TrimSpace(cfgIn.regularFont), strings.TrimSpace(cfgIn.boldFont), strings.TrimSpace(cfgIn.italicFont)
+	if reg != "" || bold != "" || italic != "" {
+		if reg == "" || bold == "" || italic == "" {
+			return fmt.Errorf("html fonts: regular, bold, and italic fonts must all be provided")
+		}
+		reg = normalizePath(reg)
+		bold = normalizePath(bold)
+		italic = normalizePath(italic)
+		if err := ensureFont(reg); err != nil {
+			return fmt.Errorf("regular font: %w", err)
+		}
+		if err := ensureFont(bold); err != nil {
+			return fmt.Errorf("bold font: %w", err)
+		}
+		if err := ensureFont(italic); err != nil {
+			return fmt.Errorf("italic font: %w", err)
+		}
+		cfg.FontFamily = "mdf"
+		cfg.RegularFont = reg
+		cfg.BoldFont = bold
+		cfg.ItalicFont = italic
+		if cfgIn.boldItalicFont != "" {
+			boldItalic := normalizePath(cfgIn.boldItalicFont)
+			if err := ensureFont(boldItalic); err != nil {
+				return fmt.Errorf("bold-italic font: %w", err)
+			}
+			cfg.BoldItalicFont = boldItalic
+		}
+	}
+	if cfgIn.headingFont != "" {
+		heading := normalizePath(cfgIn.headingFont)
+		if err := ensureFont(heading); err != nil {
+			return fmt.Errorf("heading font: %w", err)
+		}
+		cfg.HeadingFont = heading
+	}
+
+	return mdfhtml.Render(mdfhtml.RenderRequest{
 		Reader: r,
 		Writer: w,
 		Theme:  theme,

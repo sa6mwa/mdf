@@ -572,17 +572,17 @@ func rebuildXref(data []byte) ([]byte, error) {
 	out.Write(body)
 	xrefOffset := out.Len()
 	out.WriteString("xref\n")
-	out.WriteString(fmt.Sprintf("0 %d\n", maxObj+1))
+	fmt.Fprintf(&out, "0 %d\n", maxObj+1)
 	out.WriteString("0000000000 65535 f \n")
 	for i := 1; i <= maxObj; i++ {
 		if off, ok := offsets[i]; ok {
-			out.WriteString(fmt.Sprintf("%010d 00000 n \n", off))
+			fmt.Fprintf(&out, "%010d 00000 n \n", off)
 		} else {
 			out.WriteString("0000000000 65535 f \n")
 		}
 	}
 	out.WriteString("trailer\n<< ")
-	out.WriteString(fmt.Sprintf("/Size %d", maxObj+1))
+	fmt.Fprintf(&out, "/Size %d", maxObj+1)
 	if root != "" {
 		out.WriteString(" /Root ")
 		out.WriteString(root)
