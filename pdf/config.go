@@ -2,24 +2,28 @@ package pdf
 
 // Config holds PDF rendering settings.
 type Config struct {
-	PageSize             string
-	Margin               float64
-	FontFamily           string
-	FontSize             float64
-	LineHeight           float64
-	RegularFont          string
-	BoldFont             string
-	ItalicFont           string
-	BoldItalicFont       string
-	HeadingFont          string
-	RegularFontBytes     []byte
-	BoldFontBytes        []byte
-	ItalicFontBytes      []byte
-	BoldItalicFontBytes  []byte
-	HeadingScale         [6]float64
-	IgnoreColors         bool
-	BackgroundEnabled    bool
-	UseOCGPrintView      bool
+	PageSize            string
+	Margin              float64
+	FontFamily          string
+	FontSize            float64
+	LineHeight          float64
+	RegularFont         string
+	BoldFont            string
+	ItalicFont          string
+	BoldItalicFont      string
+	HeadingFont         string
+	RegularFontBytes    []byte
+	BoldFontBytes       []byte
+	ItalicFontBytes     []byte
+	BoldItalicFontBytes []byte
+	HeadingScale        [6]float64
+	IgnoreColors        bool
+	BackgroundEnabled   bool
+	// UseOCGPrintView is a legacy compatibility name for the single-file
+	// split screen/print PDF mode. The implementation is annotation-based.
+	UseOCGPrintView bool
+	// OpenLayerPane is a legacy compatibility option from the old OCG-based
+	// implementation. It has no effect in annotation-based split mode.
 	OpenLayerPane        bool
 	Boring               bool
 	BackgroundRGB        [3]int

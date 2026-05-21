@@ -90,10 +90,11 @@ type wordBuffer struct {
 }
 
 type cornerImage struct {
-	path   string
+	name   string
 	opts   gofpdf.ImageOptions
 	width  float64
 	height float64
+	draw   bool
 }
 
 type pdfLayers struct {
@@ -147,13 +148,13 @@ func (s *pdfStream) addPage() {
 			s.pdf.Rect(0, 0, s.pageW, s.pageH, "F")
 		}
 	}
-	if s.cornerImage != nil && s.pageNum == 1 {
+	if s.cornerImage != nil && s.cornerImage.draw && s.pageNum == 1 {
 		x := s.pageW - s.cfg.Margin - s.cornerImage.width
 		y := s.cfg.Margin
 		if s.layers.enabled {
 			s.pdf.BeginLayer(s.layers.image)
 		}
-		s.pdf.ImageOptions(s.cornerImage.path, x, y, s.cornerImage.width, s.cornerImage.height, false, s.cornerImage.opts, 0, "")
+		s.pdf.ImageOptions(s.cornerImage.name, x, y, s.cornerImage.width, s.cornerImage.height, false, s.cornerImage.opts, 0, "")
 		if s.layers.enabled {
 			s.pdf.EndLayer()
 		}

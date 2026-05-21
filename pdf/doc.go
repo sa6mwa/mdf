@@ -2,7 +2,12 @@
 //
 // The renderer consumes an io.Reader and writes a PDF to an io.Writer. It
 // supports theme-driven colors, configurable page layout, optional corner
-// images, and embedded fonts.
+// images, embedded fonts, and a single-file split screen/print mode.
+//
+// The split screen/print mode keeps boring print content as the real page
+// content and overlays the themed screen presentation through appearance
+// annotations. The legacy Config field name for this mode still references
+// OCG for compatibility, but the implementation is annotation-based.
 //
 // Example:
 //

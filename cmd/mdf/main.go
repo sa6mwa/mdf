@@ -51,7 +51,7 @@ func main() {
 		pdfH1Scale        float64
 		pdfH2Scale        float64
 		pdfH3Scale        float64
-		pdfOCGPrintView   bool
+		pdfPrintViewSplit bool
 		pdfRegularFont    string
 		pdfBoldFont       string
 		pdfItalicFont     string
@@ -81,7 +81,7 @@ func main() {
 	flags.StringVar(&pdfRegularFont, "pdf-regular-font", "", "TTF path for regular font")
 	flags.StringVar(&pdfBoldItalicFont, "pdf-bold-italic-font", "", "TTF path for bold-italic font")
 	flags.StringVar(&pdfHeadingFont, "pdf-heading-font", "", "TTF path for heading font (overrides body font)")
-	flags.BoolVar(&pdfOCGPrintView, "pdf-ocg-print-view", false, "Enable OCG view/print layers (themed view, boring print)")
+	flags.BoolVar(&pdfPrintViewSplit, "pdf-ocg-print-view", false, "Enable single-file view/print split PDF (experimental themed view, boring print)")
 	flags.StringVar(&pdfPageSize, "pdf-page-size", pdfDefaults.PageSize, "PDF page size")
 	flags.Float64Var(&pdfMargin, "pdf-margin", pdfDefaults.Margin, "Page margin in points")
 	flags.Float64Var(&pdfLineHeight, "pdf-line-height", pdfDefaults.LineHeight, "Line height multiplier")
@@ -168,7 +168,7 @@ func main() {
 			h1Scale:        pdfH1Scale,
 			h2Scale:        pdfH2Scale,
 			h3Scale:        pdfH3Scale,
-			ocgPrintView:   pdfOCGPrintView,
+			printViewSplit: pdfPrintViewSplit,
 			regularFont:    pdfRegularFont,
 			boldFont:       pdfBoldFont,
 			italicFont:     pdfItalicFont,
@@ -238,7 +238,7 @@ type pdfConfig struct {
 	h1Scale        float64
 	h2Scale        float64
 	h3Scale        float64
-	ocgPrintView   bool
+	printViewSplit bool
 	regularFont    string
 	boldFont       string
 	italicFont     string
@@ -271,7 +271,7 @@ func renderPDF(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdf
 	if cfgIn.h3Scale > 0 {
 		cfg.HeadingScale[2] = cfgIn.h3Scale
 	}
-	cfg.UseOCGPrintView = cfgIn.ocgPrintView
+	cfg.UseOCGPrintView = cfgIn.printViewSplit
 	if cfgIn.cornerImage != "" {
 		cfg.CornerImagePath = cfgIn.cornerImage
 	}

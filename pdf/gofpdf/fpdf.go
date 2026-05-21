@@ -93,10 +93,14 @@ func fpdfNew(orientationStr, unitStr, sizeStr, fontDirStr string, size SizeType)
 	f.images = make(map[string]*ImageInfoType)
 	f.pageLinks = make([][]linkType, 0, 8)
 	f.pageLinks = append(f.pageLinks, make([]linkType, 0, 0)) // pageLinks[0] is unused (1-based)
+	f.pageObjNumbers = make([]int, 0, 8)
+	f.pageObjNumbers = append(f.pageObjNumbers, 0) // pageObjNumbers[0] is unused (1-based)
 	f.links = make([]intLinkType, 0, 8)
 	f.links = append(f.links, intLinkType{}) // links[0] is unused (1-based)
 	f.pageAttachments = make([][]annotationAttach, 0, 8)
 	f.pageAttachments = append(f.pageAttachments, []annotationAttach{}) //
+	f.pageAppearanceAnnots = make([][]appearanceAnnotation, 0, 8)
+	f.pageAppearanceAnnots = append(f.pageAppearanceAnnots, []appearanceAnnotation{})
 	f.aliasMap = make(map[string]string)
 	f.inHeader = false
 	f.inFooter = false
@@ -3518,7 +3522,9 @@ func (f *Fpdf) beginpage(orientationStr string, size SizeType) {
 	}
 	f.pages = append(f.pages, bytes.NewBufferString(""))
 	f.pageLinks = append(f.pageLinks, make([]linkType, 0, 0))
+	f.pageObjNumbers = append(f.pageObjNumbers, 0)
 	f.pageAttachments = append(f.pageAttachments, []annotationAttach{})
+	f.pageAppearanceAnnots = append(f.pageAppearanceAnnots, []appearanceAnnotation{})
 	f.state = 2
 	f.x = f.lMargin
 	f.y = f.tMargin
@@ -3891,11 +3897,12 @@ func (f *Fpdf) putpages() {
 		wPt = f.defPageSize.Ht * f.k
 		hPt = f.defPageSize.Wd * f.k
 	}
-	pagesObjectNumbers := make([]int, nb+1) // 1-based
+	pagesObjectNumbers := f.planPageObjectNumbers()
+	f.pageObjNumbers = pagesObjectNumbers
 	for n := 1; n <= nb; n++ {
+		baseObjNum := f.n
 		// Page
 		f.newobj()
-		pagesObjectNumbers[n] = f.n // save for /Kids
 		f.out("<</Type /Page")
 		f.out("/Parent 1 0 R")
 		pageSize, ok = f.pageSizes[n]
@@ -3906,10 +3913,11 @@ func (f *Fpdf) putpages() {
 			f.outf("/%s [%.2f %.2f %.2f %.2f]", t, pb.X, pb.Y, pb.Wd, pb.Ht)
 		}
 		f.out("/Resources 2 0 R")
-		// Links
-		if len(f.pageLinks[n])+len(f.pageAttachments[n]) > 0 {
+		// Links and custom annotations
+		if len(f.pageLinks[n])+len(f.pageAttachments[n])+len(f.pageAppearanceAnnots[n]) > 0 {
 			var annots fmtBuffer
 			annots.printf("/Annots [")
+			f.putAppearanceAnnotationRefs(&annots, baseObjNum, n)
 			for _, pl := range f.pageLinks[n] {
 				annots.printf("<</Type /Annot /Subtype /Link /Rect [%.2f %.2f %.2f %.2f] /Border [0 0 0] ",
 					pl.x, pl.y, pl.x+pl.wd, pl.y-pl.ht)
@@ -3926,12 +3934,13 @@ func (f *Fpdf) putpages() {
 						h = hPt
 					}
 					// dbg("h [%.2f], l.y [%.2f] f.k [%.2f]\n", h, l.y, f.k)
-					annots.printf("/Dest [%d 0 R /XYZ 0 %.2f null]>>", 1+2*l.page, h-l.y*f.k)
+					annots.printf("/Dest [%d 0 R /XYZ 0 %.2f null]>>", f.pageObjectNumber(l.page), h-l.y*f.k)
 				}
 			}
 			f.putAttachmentAnnotationLinks(&annots, n)
 			annots.printf("]")
-			f.out(annots.String())
+			f.buffer.Write(annots.Bytes())
+			f.out("")
 		}
 		if f.pdfVersion > "1.3" {
 			f.out("/Group <</Type /Group /S /Transparency /CS /DeviceRGB>>")
@@ -3949,6 +3958,7 @@ func (f *Fpdf) putpages() {
 			f.putstream(f.pages[n].Bytes())
 		}
 		f.out("endobj")
+		f.putAppearanceAnnotationObjects(n)
 	}
 	// Pages root
 	f.offsets[1] = f.buffer.Len()
@@ -3965,6 +3975,24 @@ func (f *Fpdf) putpages() {
 	f.outf("/MediaBox [0 0 %.2f %.2f]", wPt, hPt)
 	f.out(">>")
 	f.out("endobj")
+}
+
+func (f *Fpdf) planPageObjectNumbers() []int {
+	nb := f.page
+	pageObjNumbers := make([]int, nb+1)
+	nextObj := f.n + 1
+	for page := 1; page <= nb; page++ {
+		pageObjNumbers[page] = nextObj
+		nextObj += 2 + 2*len(f.pageAppearanceAnnots[page])
+	}
+	return pageObjNumbers
+}
+
+func (f *Fpdf) pageObjectNumber(page int) int {
+	if page > 0 && page < len(f.pageObjNumbers) && f.pageObjNumbers[page] != 0 {
+		return f.pageObjNumbers[page]
+	}
+	return 1 + 2*page
 }
 
 func (f *Fpdf) putfonts() {
@@ -4772,7 +4800,7 @@ func (f *Fpdf) putbookmarks() {
 			if o.last != -1 {
 				f.outf("/Last %d 0 R", n+o.last)
 			}
-			f.outf("/Dest [%d 0 R /XYZ 0 %.2f null]", 1+2*o.p, (f.h-o.y)*f.k)
+			f.outf("/Dest [%d 0 R /XYZ 0 %.2f null]", f.pageObjectNumber(o.p), pageHeightPtFor(f, o.p)-o.y*f.k)
 			f.out("/Count 0>>")
 			f.out("endobj")
 		}

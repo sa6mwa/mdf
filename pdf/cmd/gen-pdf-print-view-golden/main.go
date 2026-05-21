@@ -21,7 +21,7 @@ func main() {
 		os.Exit(1)
 	}
 	var out bytes.Buffer
-	cfg, err := ocgConfig(root)
+	cfg, err := printViewConfig(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "embedded fonts: %v\n", err)
 		os.Exit(1)
@@ -38,9 +38,9 @@ func main() {
 	}
 
 	viewPDF := out.Bytes()
-	printPDF, err := pdfgolden.ApplyPrintOCGVisibility(viewPDF)
+	printPDF, err := flattenWithPDFToCairo(viewPDF)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "apply print visibility: %v\n", err)
+		fmt.Fprintf(os.Stderr, "flatten print pdf: %v\n", err)
 		os.Exit(1)
 	}
 	goldenDir := filepath.Join(root, "golden")
@@ -48,19 +48,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "mkdir goldens: %v\n", err)
 		os.Exit(1)
 	}
-	if err := writeOCGPNG(viewPDF, filepath.Join(goldenDir, "ocg_print_view_view_p1.png")); err != nil {
+	if err := writePrintViewPNG(viewPDF, filepath.Join(goldenDir, "ocg_print_view_view_p1.png")); err != nil {
 		fmt.Fprintf(os.Stderr, "write view golden: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "wrote %s\n", filepath.Join(goldenDir, "ocg_print_view_view_p1.png"))
-	if err := writeOCGPNG(printPDF, filepath.Join(goldenDir, "ocg_print_view_print_p1.png")); err != nil {
+	if err := writePrintViewPNG(printPDF, filepath.Join(goldenDir, "ocg_print_view_print_p1.png")); err != nil {
 		fmt.Fprintf(os.Stderr, "write print golden: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "wrote %s\n", filepath.Join(goldenDir, "ocg_print_view_print_p1.png"))
 }
 
-func ocgConfig(root string) (pdf.Config, error) {
+func printViewConfig(root string) (pdf.Config, error) {
 	cfg := pdf.DefaultConfig()
 	cfg.UseOCGPrintView = true
 	cfg.CornerImagePath = filepath.Join(root, "ocg_corner.png")
@@ -76,8 +76,8 @@ func ocgConfig(root string) (pdf.Config, error) {
 	return cfg, nil
 }
 
-func writeOCGPNG(pdfData []byte, dst string) error {
-	tmpDir, err := os.MkdirTemp("", "mdf-ocg-")
+func writePrintViewPNG(pdfData []byte, dst string) error {
+	tmpDir, err := os.MkdirTemp("", "mdf-print-view-")
 	if err != nil {
 		return err
 	}
@@ -101,4 +101,22 @@ func writeOCGPNG(pdfData []byte, dst string) error {
 		return fmt.Errorf("pdftoppm produced no pages")
 	}
 	return pdfgolden.CopyFile(dst, pages[0])
+}
+
+func flattenWithPDFToCairo(pdfData []byte) ([]byte, error) {
+	tmpDir, err := os.MkdirTemp("", "mdf-print-view-flat-")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+	srcPath := filepath.Join(tmpDir, "src.pdf")
+	if err := os.WriteFile(srcPath, pdfData, 0o644); err != nil {
+		return nil, err
+	}
+	flatPath := filepath.Join(tmpDir, "flat.pdf")
+	cmd := pdfgolden.PDFToCairoPDFCommand(srcPath, flatPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("pdftocairo failed: %v\n%s", err, string(out))
+	}
+	return os.ReadFile(flatPath)
 }

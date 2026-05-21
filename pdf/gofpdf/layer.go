@@ -158,44 +158,44 @@ func (f *Fpdf) layerPutResourceDict() {
 
 func (f *Fpdf) layerPutCatalog() {
 	if len(f.layer.list) > 0 {
-		onStr := ""
+		ocgStr := ""
 		offStr := ""
-		viewOnStr := ""
-		viewOffStr := ""
-		printOnStr := ""
-		printOffStr := ""
+		viewUsageStr := ""
+		printUsageStr := ""
 		hasView := false
 		hasPrint := false
 		for _, layer := range f.layer.list {
-			onStr += sprintf("%d 0 R ", layer.objNum)
+			ocgStr += sprintf("%d 0 R ", layer.objNum)
 			if !layer.visible {
 				offStr += sprintf("%d 0 R ", layer.objNum)
 			}
 			if layer.viewState != LayerUsageUnset {
 				hasView = true
-				if layer.viewState == LayerUsageOn {
-					viewOnStr += sprintf("%d 0 R ", layer.objNum)
-				} else {
-					viewOffStr += sprintf("%d 0 R ", layer.objNum)
-				}
+				viewUsageStr += sprintf("%d 0 R ", layer.objNum)
 			}
 			if layer.printState != LayerUsageUnset {
 				hasPrint = true
-				if layer.printState == LayerUsageOn {
-					printOnStr += sprintf("%d 0 R ", layer.objNum)
-				} else {
-					printOffStr += sprintf("%d 0 R ", layer.objNum)
-				}
+				printUsageStr += sprintf("%d 0 R ", layer.objNum)
 			}
 		}
-		dict := sprintf("/OFF [%s] /Order [%s]", offStr, onStr)
-		if hasView {
-			dict += sprintf(" /View <</ON [%s] /OFF [%s]>>", viewOnStr, viewOffStr)
+		dict := sprintf("/Name %s /BaseState /ON /OFF [%s] /Order [%s]", f.textstring(utf8toutf16("Default")), offStr, ocgStr)
+		if hasView || hasPrint {
+			dict += " /AS ["
+			needsSpace := false
+			if hasView {
+				dict += sprintf("<</Event /View /Category [/View] /OCGs [%s]>>", viewUsageStr)
+				needsSpace = true
+			}
+			if hasPrint {
+				if needsSpace {
+					dict += " "
+				}
+				dict += sprintf("<</Event /Print /Category [/Print] /OCGs [%s]>>", printUsageStr)
+				needsSpace = true
+			}
+			dict += "]"
 		}
-		if hasPrint {
-			dict += sprintf(" /Print <</ON [%s] /OFF [%s]>>", printOnStr, printOffStr)
-		}
-		f.outf("/OCProperties <</OCGs [%s] /D <<%s>>>>", onStr, dict)
+		f.outf("/OCProperties <</OCGs [%s] /D <<%s>>>>", ocgStr, dict)
 		if f.layer.openLayerPane {
 			f.out("/PageMode /UseOC")
 		}
