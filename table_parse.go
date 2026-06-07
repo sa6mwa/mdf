@@ -12,6 +12,9 @@ func parseTableRow(line string) ([]string, bool) {
 		return nil, false
 	}
 	hasEdgePipe := strings.HasPrefix(line, "|") || (strings.HasSuffix(line, "|") && !hasEscapedTrailingPipe(line))
+	if !hasEdgePipe {
+		return nil, false
+	}
 	cells := splitTableCells(line)
 	if len(cells) < 2 && !(hasEdgePipe && len(cells) == 1) {
 		return nil, false

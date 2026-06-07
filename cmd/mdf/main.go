@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -46,6 +47,7 @@ func main() {
 		htmlFont          string
 		htmlContentWidth  float64
 		pdfMode           bool
+		traceWritesPath   string
 		tableBufferFlag   string
 		tableWireFlag     string
 		pdfPageSize       string
@@ -83,6 +85,7 @@ func main() {
 	flags.StringVar(&htmlFont, "html-font", string(htmlDefaults.EmbeddedFont), "Embedded HTML font: jetbrainsmono|hack")
 	flags.Float64Var(&htmlContentWidth, "html-content-width", htmlDefaults.ContentMaxWidthCh, "HTML content max width in ch")
 	flags.BoolVar(&pdfMode, "pdf", false, "Generate a PDF instead of ANSI output")
+	flags.StringVar(&traceWritesPath, "trace-writes", "", "Write ANSI sink-write trace events as NDJSON to path, or - for stderr")
 	flags.StringVar(&tableBufferFlag, "table-buffer", "full", "Table buffering mode: full|row")
 	flags.StringVar(&tableWireFlag, "table-wire", "line", "Table wire mode: line|ascii|space")
 	flags.StringVar(&pdfBoldFont, "pdf-bold-font", "", "TTF path for bold font")
@@ -147,14 +150,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "choose either --pdf or --html")
 		os.Exit(2)
 	}
-
-	writer, closeOut, err := resolveOutput(outPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "open output: %v\n", err)
-		os.Exit(1)
+	if err := validateTraceWritesForMode(traceWritesPath, pdfMode, htmlMode); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
-	if closeOut != nil {
-		defer func() { _ = closeOut.Close() }()
+
+	writer, closeOut, closeTrace, err := configureOutput(outPath, traceWritesPath, os.Stderr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "configure output: %v\n", err)
+		os.Exit(configureOutputExitCode(err))
+	}
+	defer closeIfPresent(closeOut)
+	if closeTrace != nil {
+		defer func() { _ = closeTrace.Close() }()
 	}
 
 	theme, ok := mdf.ThemeByName(themeName)
@@ -549,6 +557,63 @@ func validateTableWireForMode(htmlMode bool, mode mdf.TableWireMode) error {
 	return nil
 }
 
+func validateTraceWritesForMode(tracePath string, pdfMode bool, htmlMode bool) error {
+	if strings.TrimSpace(tracePath) != "" && (pdfMode || htmlMode) {
+		return fmt.Errorf("--trace-writes is only supported for ANSI output")
+	}
+	return nil
+}
+
+func validateTraceOutputPaths(tracePath string, outPath string) error {
+	tracePath = strings.TrimSpace(tracePath)
+	outPath = strings.TrimSpace(outPath)
+	if tracePath == "" || tracePath == "-" || outPath == "" {
+		return nil
+	}
+	same, err := sameOutputPath(tracePath, outPath)
+	if err != nil {
+		return err
+	}
+	if same {
+		return usageError("trace path must be different from output path")
+	}
+	return nil
+}
+
+type usageError string
+
+func (e usageError) Error() string {
+	return string(e)
+}
+
+func configureOutputExitCode(err error) int {
+	var usage usageError
+	if errors.As(err, &usage) {
+		return 2
+	}
+	return 1
+}
+
+func sameOutputPath(first string, second string) (bool, error) {
+	first = filepath.Clean(normalizePath(first))
+	second = filepath.Clean(normalizePath(second))
+	if first == second {
+		return true, nil
+	}
+	firstInfo, firstErr := os.Stat(first)
+	secondInfo, secondErr := os.Stat(second)
+	if firstErr == nil && secondErr == nil {
+		return os.SameFile(firstInfo, secondInfo), nil
+	}
+	if firstErr != nil && !errors.Is(firstErr, os.ErrNotExist) {
+		return false, firstErr
+	}
+	if secondErr != nil && !errors.Is(secondErr, os.ErrNotExist) {
+		return false, secondErr
+	}
+	return false, nil
+}
+
 func boringTheme() mdf.Theme {
 	return mdf.NewTheme("boring", mdf.Styles{})
 }
@@ -695,6 +760,67 @@ func resolveOutput(path string) (io.Writer, io.Closer, error) {
 		return nil, nil, err
 	}
 	return f, f, nil
+}
+
+func configureOutput(outPath string, tracePath string, stderr io.Writer) (io.Writer, io.Closer, io.Closer, error) {
+	if err := validateTraceOutputPaths(tracePath, outPath); err != nil {
+		return nil, nil, nil, err
+	}
+	traceEncoder, closeTrace, err := openWriteTrace(tracePath, stderr)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	writer, closeOut, err := resolveOutput(outPath)
+	if err != nil {
+		closeIfPresent(closeTrace)
+		return nil, nil, nil, err
+	}
+	if traceEncoder != nil {
+		writer = mdf.NewWriteTraceWriter(writer, traceEncoder)
+	}
+	return writer, closeOut, closeTrace, nil
+}
+
+func configureWriteTrace(writer io.Writer, tracePath string, outPath string, stderr io.Writer) (io.Writer, io.Closer, error) {
+	if err := validateTraceOutputPaths(tracePath, outPath); err != nil {
+		return nil, nil, err
+	}
+	traceEncoder, closeTrace, err := openWriteTrace(tracePath, stderr)
+	if err != nil {
+		return nil, nil, err
+	}
+	if traceEncoder == nil {
+		return writer, nil, nil
+	}
+	return mdf.NewWriteTraceWriter(writer, traceEncoder), closeTrace, nil
+}
+
+func openWriteTrace(tracePath string, stderr io.Writer) (mdf.WriteTraceEncoder, io.Closer, error) {
+	tracePath = strings.TrimSpace(tracePath)
+	if tracePath == "" {
+		return nil, nil, nil
+	}
+	if tracePath == "-" {
+		return mdf.NewNDJSONWriteTraceEncoder(stderr), nil, nil
+	}
+	clean := normalizePath(tracePath)
+	dir := filepath.Dir(clean)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, nil, err
+		}
+	}
+	f, err := os.Create(clean)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mdf.NewNDJSONWriteTraceEncoder(f), f, nil
+}
+
+func closeIfPresent(closer io.Closer) {
+	if closer != nil {
+		_ = closer.Close()
+	}
 }
 
 func normalizePath(path string) string {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -228,6 +230,202 @@ func TestValidateTableWireForModeAllowsHTMLLineAndSpace(t *testing.T) {
 	}
 }
 
+func TestValidateTraceWritesForModeRejectsNonANSI(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		pdfMode  bool
+		htmlMode bool
+	}{
+		{name: "pdf", pdfMode: true},
+		{name: "html", htmlMode: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateTraceWritesForMode("trace.ndjson", tc.pdfMode, tc.htmlMode)
+			if err == nil {
+				t.Fatalf("expected trace mode rejection")
+			}
+			if !strings.Contains(err.Error(), "--trace-writes is only supported for ANSI output") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+	if err := validateTraceWritesForMode("trace.ndjson", false, false); err != nil {
+		t.Fatalf("expected ANSI trace mode to be allowed: %v", err)
+	}
+	if err := validateTraceWritesForMode("", true, true); err != nil {
+		t.Fatalf("expected disabled trace mode to be allowed: %v", err)
+	}
+}
+
+func TestConfigureWriteTraceDashWritesEventsToStderr(t *testing.T) {
+	var sink bytes.Buffer
+	var stderr bytes.Buffer
+	writer, closer, err := configureWriteTrace(&sink, "-", "", &stderr)
+	if err != nil {
+		t.Fatalf("configure trace: %v", err)
+	}
+	if closer != nil {
+		t.Fatalf("stderr trace should not return closer")
+	}
+	if _, err := writer.Write([]byte("hello")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got, want := sink.String(), "hello"; got != want {
+		t.Fatalf("sink got %q want %q", got, want)
+	}
+	event := decodeCLITraceEvent(t, stderr.Bytes())
+	assertCLITraceEvent(t, event, 1, "hello")
+}
+
+func TestConfigureWriteTracePathWritesEventsToFile(t *testing.T) {
+	dir := t.TempDir()
+	tracePath := filepath.Join(dir, "trace", "writes.ndjson")
+	var sink bytes.Buffer
+	writer, closer, err := configureWriteTrace(&sink, tracePath, "", io.Discard)
+	if err != nil {
+		t.Fatalf("configure trace: %v", err)
+	}
+	if closer == nil {
+		t.Fatalf("file trace should return closer")
+	}
+	if _, err := writer.Write([]byte("hello")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := closer.Close(); err != nil {
+		t.Fatalf("close trace: %v", err)
+	}
+	data, err := os.ReadFile(tracePath)
+	if err != nil {
+		t.Fatalf("read trace: %v", err)
+	}
+	event := decodeCLITraceEvent(t, data)
+	assertCLITraceEvent(t, event, 1, "hello")
+}
+
+func TestConfigureWriteTraceRejectsOutputPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out")
+	_, _, err := configureWriteTrace(io.Discard, path, path, io.Discard)
+	if err == nil {
+		t.Fatalf("expected same trace and output path rejection")
+	}
+	if !strings.Contains(err.Error(), "trace path must be different from output path") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigureOutputRejectsTraceOutputAbsoluteAliasBeforeTruncatingOutput(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "out.ansi")
+	original := []byte("existing output must survive absolute alias")
+	if err := os.WriteFile(outPath, original, 0o644); err != nil {
+		t.Fatalf("write existing output: %v", err)
+	}
+	absOut, err := filepath.Abs(outPath)
+	if err != nil {
+		t.Fatalf("abs output path: %v", err)
+	}
+
+	_, _, _, err = configureOutput(outPath, absOut, io.Discard)
+	if err == nil {
+		t.Fatalf("expected absolute alias rejection")
+	}
+	assertOutputUnchanged(t, outPath, original)
+}
+
+func TestConfigureOutputRejectsTraceOutputSymlinkAliasBeforeTruncatingOutput(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "out.ansi")
+	original := []byte("existing output must survive symlink alias")
+	if err := os.WriteFile(outPath, original, 0o644); err != nil {
+		t.Fatalf("write existing output: %v", err)
+	}
+	tracePath := filepath.Join(dir, "trace-link")
+	if err := os.Symlink(outPath, tracePath); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	_, _, _, err := configureOutput(outPath, tracePath, io.Discard)
+	if err == nil {
+		t.Fatalf("expected symlink alias rejection")
+	}
+	assertOutputUnchanged(t, outPath, original)
+}
+
+func TestConfigureOutputRejectsTraceOutputHardLinkAliasBeforeTruncatingOutput(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "out.ansi")
+	original := []byte("existing output must survive hard link alias")
+	if err := os.WriteFile(outPath, original, 0o644); err != nil {
+		t.Fatalf("write existing output: %v", err)
+	}
+	tracePath := filepath.Join(dir, "trace-hardlink")
+	if err := os.Link(outPath, tracePath); err != nil {
+		t.Skipf("hard link unavailable: %v", err)
+	}
+
+	_, _, _, err := configureOutput(outPath, tracePath, io.Discard)
+	if err == nil {
+		t.Fatalf("expected hard link alias rejection")
+	}
+	assertOutputUnchanged(t, outPath, original)
+}
+
+func TestConfigureOutputRejectsTraceOutputPathBeforeTruncatingOutput(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out.ansi")
+	original := []byte("existing output must survive")
+	if err := os.WriteFile(path, original, 0o644); err != nil {
+		t.Fatalf("write existing output: %v", err)
+	}
+
+	_, _, _, err := configureOutput(path, path, io.Discard)
+	if err == nil {
+		t.Fatalf("expected same trace and output path rejection")
+	}
+	if !strings.Contains(err.Error(), "trace path must be different from output path") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertOutputUnchanged(t, path, original)
+}
+
+func TestConfigureOutputRejectsInvalidTracePathBeforeTruncatingOutput(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "out.ansi")
+	original := []byte("existing output must survive trace setup failure")
+	if err := os.WriteFile(outPath, original, 0o644); err != nil {
+		t.Fatalf("write existing output: %v", err)
+	}
+	traceParent := filepath.Join(dir, "trace-parent-is-file")
+	if err := os.WriteFile(traceParent, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write trace parent file: %v", err)
+	}
+	tracePath := filepath.Join(traceParent, "writes.ndjson")
+
+	_, _, _, err := configureOutput(outPath, tracePath, io.Discard)
+	if err == nil {
+		t.Fatalf("expected invalid trace path rejection")
+	}
+	assertOutputUnchanged(t, outPath, original)
+}
+
+func TestConfigureOutputExitCodeClassifiesUsageAndOperationalErrors(t *testing.T) {
+	if got := configureOutputExitCode(usageError("bad flag")); got != 2 {
+		t.Fatalf("usage exit code got %d want 2", got)
+	}
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "out.ansi")
+	traceParent := filepath.Join(dir, "trace-parent-is-file")
+	if err := os.WriteFile(traceParent, []byte("not a directory"), 0o644); err != nil {
+		t.Fatalf("write trace parent file: %v", err)
+	}
+	_, _, _, err := configureOutput(outPath, filepath.Join(traceParent, "writes.ndjson"), io.Discard)
+	if err == nil {
+		t.Fatalf("expected operational trace setup error")
+	}
+	if got := configureOutputExitCode(err); got != 1 {
+		t.Fatalf("operational exit code got %d want 1 for %v", got, err)
+	}
+}
+
 func TestBoringThemeHasNoPrefixes(t *testing.T) {
 	theme := boringTheme()
 	styles := theme.Styles()
@@ -255,5 +453,45 @@ func TestBoringThemeHasNoPrefixes(t *testing.T) {
 		if strings.TrimSpace(prefix) != "" {
 			t.Fatalf("expected empty prefix, got %q", prefix)
 		}
+	}
+}
+
+func decodeCLITraceEvent(t *testing.T, data []byte) mdf.WriteTraceEvent {
+	t.Helper()
+	var event mdf.WriteTraceEvent
+	if err := json.Unmarshal(bytes.TrimSpace(data), &event); err != nil {
+		t.Fatalf("decode trace event: %v", err)
+	}
+	return event
+}
+
+func assertCLITraceEvent(t *testing.T, event mdf.WriteTraceEvent, seq uint64, payload string) {
+	t.Helper()
+	if event.Seq != seq {
+		t.Fatalf("sequence got %d want %d", event.Seq, seq)
+	}
+	if event.Op != "write" {
+		t.Fatalf("op got %q want write", event.Op)
+	}
+	if event.Bytes != len(payload) {
+		t.Fatalf("bytes got %d want %d", event.Bytes, len(payload))
+	}
+	data, err := base64.StdEncoding.DecodeString(event.DataB64)
+	if err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if string(data) != payload {
+		t.Fatalf("payload got %q want %q", string(data), payload)
+	}
+}
+
+func assertOutputUnchanged(t *testing.T, path string, want []byte) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read existing output: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("output was truncated or changed: got %q want %q", got, want)
 	}
 }

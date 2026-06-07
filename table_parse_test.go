@@ -190,17 +190,12 @@ func TestParseTableRowDoesNotTreatInlineOnlyPipeAsTable(t *testing.T) {
 	}
 }
 
-func TestParseTableDelimiterWithoutEdgePipes(t *testing.T) {
-	header, ok := parseTableRow("A | B")
-	if !ok {
-		t.Fatalf("expected header row")
+func TestParseTableRowRejectsNoEdgePipes(t *testing.T) {
+	if cells, ok := parseTableRow("A | B"); ok {
+		t.Fatalf("did not expect no-edge header row, got %#v", cells)
 	}
-	align, ok := parseTableDelimiter("--- | ---", len(header))
-	if !ok {
-		t.Fatalf("expected delimiter row")
-	}
-	if got, want := align, []TableAlignment{TableAlignLeft, TableAlignLeft}; !sameTableAlignment(got, want) {
-		t.Fatalf("unexpected alignments: got %v want %v", got, want)
+	if align, ok := parseTableDelimiter("--- | ---", 2); ok {
+		t.Fatalf("did not expect no-edge delimiter row, got %#v", align)
 	}
 }
 
