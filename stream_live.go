@@ -32,24 +32,35 @@ var configPool = sync.Pool{
 	},
 }
 
-// RenderRequest configures Render.
+// RenderRequest configures streaming Markdown rendering to ANSI.
 type RenderRequest struct {
-	Reader  io.Reader
-	Writer  io.Writer
-	Width   int
-	Theme   Theme
+	// Reader supplies Markdown input. Render reads it incrementally.
+	Reader io.Reader
+	// Writer receives ANSI-rendered Markdown.
+	Writer io.Writer
+	// Width is the target terminal width in cells. Values <= 0 disable wrapping.
+	Width int
+	// Theme controls semantic ANSI styles. If nil, DefaultTheme is used.
+	Theme Theme
+	// Options configures optional renderer behavior such as OSC 8 links and tables.
 	Options []RenderOption
 }
 
-// ParseRequest configures Parse.
+// ParseRequest configures streaming Markdown parsing into a token sink.
 type ParseRequest struct {
-	Reader  io.Reader
-	Stream  Stream
-	Theme   Theme
+	// Reader supplies Markdown input. Parse reads it incrementally.
+	Reader io.Reader
+	// Stream receives parsed tokens. If it also implements TableStream, tables
+	// are emitted as structured table events.
+	Stream Stream
+	// Theme controls semantic styles attached to emitted tokens. If nil,
+	// DefaultTheme is used.
+	Theme Theme
+	// Options configures parser/render metadata such as OSC 8 link tokens.
 	Options []RenderOption
 }
 
-// Render renders Markdown from a stream.
+// Render streams Markdown from Reader to Writer as ANSI terminal output.
 func Render(req RenderRequest) error {
 	if req.Reader == nil {
 		return fmt.Errorf("render: reader is nil")
@@ -64,6 +75,7 @@ func Render(req RenderRequest) error {
 			opt(cfg)
 		}
 	}
+	normalizeRenderConfig(cfg)
 	cfgVal := *cfg
 	configPool.Put(cfg)
 	stream := streamRendererPool.Get().(*StreamRenderer)
@@ -79,7 +91,7 @@ func Render(req RenderRequest) error {
 	return err
 }
 
-// Parse parses Markdown from a stream and writes tokens to a sink.
+// Parse streams Markdown from Reader and writes parsed tokens to Stream.
 func Parse(req ParseRequest) error {
 	if req.Reader == nil {
 		return fmt.Errorf("parse: reader is nil")
@@ -94,6 +106,7 @@ func Parse(req ParseRequest) error {
 			opt(cfg)
 		}
 	}
+	normalizeRenderConfig(cfg)
 	cfgVal := *cfg
 	configPool.Put(cfg)
 	theme := req.Theme
@@ -166,7 +179,10 @@ func Parse(req ParseRequest) error {
 			goto done
 		}
 	}
-	parser.finalize(req.Stream)
+	if err := parser.finalize(req.Stream); err != nil {
+		retErr = fmt.Errorf("parse: %w", err)
+		goto done
+	}
 	if err := req.Stream.Flush(); err != nil {
 		retErr = err
 	}

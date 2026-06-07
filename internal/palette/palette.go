@@ -28,6 +28,7 @@ type Palette struct {
 	LinkText       string
 	LinkURL        string
 	ThematicBreak  string
+	TableHeader    string
 }
 
 // Built-in palettes.

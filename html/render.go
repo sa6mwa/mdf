@@ -14,13 +14,19 @@ import (
 
 // RenderRequest contains inputs for HTML rendering.
 type RenderRequest struct {
+	// Reader supplies Markdown input. Render reads it incrementally.
 	Reader io.Reader
+	// Writer receives a complete self-contained HTML document.
 	Writer io.Writer
-	Theme  mdf.Theme
+	// Theme controls semantic styles. If nil, mdf.DefaultTheme is used.
+	Theme mdf.Theme
+	// Config controls HTML layout, fonts, colors, images, and tables.
 	Config Config
 }
 
 // Render converts Markdown to a self-contained themed HTML document.
+// Markdown parsing remains streaming, but the HTML document is completed when
+// the input stream reaches EOF.
 func Render(req RenderRequest) error {
 	if req.Reader == nil {
 		return fmt.Errorf("html render: reader is nil")
@@ -32,6 +38,9 @@ func Render(req RenderRequest) error {
 	applyConfig(&cfg, req.Config)
 	if cfg.FontFamily == "" || cfg.FontSize <= 0 || cfg.LineHeight <= 0 {
 		return fmt.Errorf("html render: invalid font configuration")
+	}
+	if cfg.TableWireMode == mdf.TableWireASCII {
+		return fmt.Errorf("html render: table wire mode ascii is not supported; use line or space")
 	}
 	if cfg.Boring {
 		cfg.IgnoreColors = true
@@ -67,6 +76,9 @@ func Render(req RenderRequest) error {
 func applyConfig(dst *Config, src Config) {
 	if src.Margin > 0 {
 		dst.Margin = src.Margin
+	}
+	if src.ContentMaxWidthCh > 0 {
+		dst.ContentMaxWidthCh = src.ContentMaxWidthCh
 	}
 	if src.FontFamily != "" {
 		dst.FontFamily = src.FontFamily
@@ -139,6 +151,14 @@ func applyConfig(dst *Config, src Config) {
 	}
 	if src.CornerImagePadding > 0 {
 		dst.CornerImagePadding = src.CornerImagePadding
+	}
+	switch src.TableBufferMode {
+	case mdf.TableBufferFull, mdf.TableBufferRow:
+		dst.TableBufferMode = src.TableBufferMode
+	}
+	switch src.TableWireMode {
+	case mdf.TableWireLine, mdf.TableWireASCII, mdf.TableWireSpace:
+		dst.TableWireMode = src.TableWireMode
 	}
 }
 

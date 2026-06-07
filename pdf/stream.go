@@ -21,6 +21,7 @@ const (
 	tokenURL                     = 3
 	tokenCode                    = 4
 	tokenThematicBreak           = 5
+	tokenDecodedEntity           = 6
 	headingSpaceBeforeMultiplier = 0.35
 	headingSpaceAfterMultiplier  = 1.3
 )
@@ -79,6 +80,19 @@ type pdfStream struct {
 	layers                pdfLayers
 	nbspBuf               []atom
 	punctQuotePending     bool
+	tableActive           bool
+	tableAlignments       []mdf.TableAlignment
+	tableRows             []mdf.TableRow
+	tableHeaderStyle      mdf.Style
+	tableWireStyle        mdf.Style
+	tablePrefix           []mdf.TablePrefixSegment
+	tablePlan             mdf.TableTextPlan
+	tablePlanReady        bool
+	tableJustEnded        bool
+	tableStartedFreshPage bool
+	tableContinuation     []pdfTableLine
+	tableContinuePending  bool
+	tableLineObserver     func(string)
 }
 
 type wordBuffer struct {
@@ -123,6 +137,8 @@ func newPDFStream(pdf *gofpdf.Fpdf, cfg Config, styles mdf.Styles, width int, ch
 	}
 	s.nbspBuf = make([]atom, 0, 6)
 	s.punctQuotePending = false
+	s.tableRows = make([]mdf.TableRow, 0, 8)
+	s.tableAlignments = make([]mdf.TableAlignment, 0, 8)
 	s.pending.text.Grow(64)
 	s.pageW, s.pageH = pdf.GetPageSize()
 	s.baseLineHeight = cfg.FontSize * cfg.LineHeight
@@ -187,6 +203,7 @@ func (s *pdfStream) addPage() {
 	s.headingBuf.Reset()
 	s.headingMarker = ""
 	s.lastStylePrefix = ""
+	s.tableJustEnded = false
 	s.lastStyleSet = false
 }
 
@@ -326,7 +343,504 @@ func (s *pdfStream) WriteToken(tok mdf.StreamToken) error {
 	return nil
 }
 
+func (s *pdfStream) StartTable(table mdf.TableStart) error {
+	if len(s.pending.atoms) > 0 {
+		s.flushWord(boundaryNone)
+	} else if len(s.pendingSpaces) > 0 {
+		s.emitAtoms(s.pendingSpaces)
+		s.pendingSpaces = s.pendingSpaces[:0]
+	}
+	if !s.atLineStart {
+		s.emitBoundary(boundaryNewline)
+	}
+	s.tableActive = true
+	s.tableAlignments = s.tableAlignments[:0]
+	s.tableAlignments = append(s.tableAlignments, table.Alignments...)
+	s.tableRows = s.tableRows[:0]
+	s.tableHeaderStyle = table.HeaderStyle
+	if s.tableHeaderStyle.Prefix == "" {
+		s.tableHeaderStyle = s.styles.TableHeader
+	}
+	s.tableWireStyle = table.WireStyle
+	s.tablePrefix = append(s.tablePrefix[:0], table.Prefix...)
+	s.tablePlanReady = false
+	s.tableJustEnded = false
+	s.tableStartedFreshPage = false
+	s.tableContinuation = s.tableContinuation[:0]
+	s.tableContinuePending = false
+	return nil
+}
+
+func (s *pdfStream) WriteTableRow(row mdf.TableRow) error {
+	if !s.tableActive {
+		if err := s.StartTable(mdf.TableStart{}); err != nil {
+			return err
+		}
+	}
+	if s.cfg.TableBufferMode == mdf.TableBufferRow {
+		return s.writeRowBufferedTable(row)
+	}
+	s.tableRows = append(s.tableRows, row)
+	return nil
+}
+
+func (s *pdfStream) EndTable() error {
+	if s.tableActive && s.cfg.TableBufferMode == mdf.TableBufferRow {
+		if err := s.flushRowBufferedTable(); err != nil {
+			return err
+		}
+	} else if s.tableActive && len(s.tableRows) > 0 {
+		plan := mdf.NewTableTextPlan(s.tableRows, s.tableAlignments, s.tableLayoutWidth(), s.cfg.TableWireMode)
+		s.setTableContinuation(plan, s.tableRows)
+		lines := s.fullTableLinesWithPlan(plan)
+		pageBeforeFit := s.pageNum
+		topBeforeFit := s.y
+		s.ensureTableFitsWithoutContinuation(pdfTableLineStrings(lines))
+		if s.pageNum != pageBeforeFit && topBeforeFit > s.cfg.Margin+s.cfg.FontSize {
+			s.tableStartedFreshPage = true
+			tableHeight := float64(len(lines)) * s.baseLineHeight
+			if s.y+s.baseLineHeight+tableHeight <= s.pageH-s.cfg.Margin {
+				s.y += s.baseLineHeight
+			}
+		}
+		if s.tableLinesFit(len(lines)) {
+			for _, line := range lines {
+				s.emitTableLineRaw(line)
+			}
+		} else {
+			s.emitFullBufferedTableFragments(plan, s.tableRows)
+		}
+	}
+	if len(s.pending.atoms) > 0 {
+		s.flushWord(boundaryNone)
+	} else if len(s.pendingSpaces) > 0 {
+		s.emitAtoms(s.pendingSpaces)
+		s.pendingSpaces = s.pendingSpaces[:0]
+	}
+	s.tableActive = false
+	s.tableRows = s.tableRows[:0]
+	s.tableAlignments = s.tableAlignments[:0]
+	s.tableHeaderStyle = mdf.Style{}
+	s.tableWireStyle = mdf.Style{}
+	s.tablePrefix = s.tablePrefix[:0]
+	s.tablePlanReady = false
+	s.tableJustEnded = true
+	s.tableContinuation = s.tableContinuation[:0]
+	s.tableContinuePending = false
+	return nil
+}
+
+type pdfTableLine = mdf.TableTextLine
+
+func (s *pdfStream) fullTableLines() []pdfTableLine {
+	plan := mdf.NewTableTextPlan(s.tableRows, s.tableAlignments, s.tableLayoutWidth(), s.cfg.TableWireMode)
+	s.setTableContinuation(plan, s.tableRows)
+	return s.fullTableLinesWithPlan(plan)
+}
+
+func (s *pdfStream) fullTableLinesWithPlan(plan mdf.TableTextPlan) []pdfTableLine {
+	var lines []pdfTableLine
+	lines = append(lines, plan.StyledTopBorder()...)
+	for _, row := range s.tableRows {
+		lines = append(lines, plan.StyledRowLines(row)...)
+		if row.Header {
+			lines = append(lines, plan.StyledHeaderBorder()...)
+		}
+	}
+	lines = append(lines, plan.StyledBottomBorder()...)
+	return lines
+}
+
+func (s *pdfStream) emitFullBufferedTableFragments(plan mdf.TableTextPlan, rows []mdf.TableRow) {
+	if len(rows) == 0 {
+		return
+	}
+	bottom := plan.StyledBottomBorder()
+	continuation := s.tableContinuation
+	headerLines := append([]pdfTableLine{}, plan.StyledTopBorder()...)
+	bodyStart := 0
+	if rows[0].Header {
+		headerLines = append(headerLines, plan.StyledRowLines(rows[0])...)
+		headerLines = append(headerLines, plan.StyledHeaderBorder()...)
+		bodyStart = 1
+	}
+	if bodyStart < len(rows) {
+		firstRow := plan.StyledRowLines(rows[bodyStart])
+		if !s.tableLinesFit(len(headerLines) + len(firstRow) + len(bottom)) {
+			pageBefore := s.pageNum
+			s.pageBreak()
+			if s.pageNum != pageBefore && s.y+s.baseLineHeight <= s.pageH-s.cfg.Margin {
+				s.tableStartedFreshPage = true
+				s.y += s.baseLineHeight
+			}
+		}
+	}
+	for _, line := range headerLines {
+		s.emitTableLineRaw(line)
+	}
+	fragmentOpen := len(headerLines) > 0
+	for i := bodyStart; i < len(rows); i++ {
+		rowLines := plan.StyledRowLines(rows[i])
+		s.emitTableFragmentGroup(rowLines, bottom, continuation, &fragmentOpen)
+	}
+	for _, line := range bottom {
+		s.emitTableLineRaw(line)
+	}
+}
+
+func (s *pdfStream) emitTableFragmentGroup(lines []pdfTableLine, bottom []pdfTableLine, continuation []pdfTableLine, fragmentOpen *bool) {
+	if len(lines) == 0 {
+		return
+	}
+	reserved := len(bottom)
+	if s.tableLinesFit(len(lines) + reserved) {
+		for _, line := range lines {
+			s.emitTableLineRaw(line)
+		}
+		*fragmentOpen = true
+		return
+	}
+	if len(lines)+len(continuation)+reserved <= s.freshTableLineCapacity() {
+		s.emitTableFragmentBreak(bottom, continuation, fragmentOpen)
+		for _, line := range lines {
+			s.emitTableLineRaw(line)
+		}
+		*fragmentOpen = true
+		return
+	}
+	for _, line := range lines {
+		if !s.tableLinesFit(1 + reserved) {
+			s.emitTableFragmentBreak(bottom, continuation, fragmentOpen)
+		}
+		s.emitTableLineRaw(line)
+		*fragmentOpen = true
+	}
+}
+
+func (s *pdfStream) emitTableFragmentBreak(bottom []pdfTableLine, continuation []pdfTableLine, fragmentOpen *bool) {
+	if *fragmentOpen {
+		for _, line := range bottom {
+			s.emitTableLineRaw(line)
+		}
+	}
+	s.pageBreak()
+	for _, line := range continuation {
+		s.emitTableLineRaw(line)
+	}
+	*fragmentOpen = len(continuation) > 0
+}
+
+func (s *pdfStream) tableLinesFit(count int) bool {
+	if count <= 0 {
+		return true
+	}
+	return s.y+float64(count)*s.baseLineHeight <= s.pageH-s.cfg.Margin+0.0001
+}
+
+func (s *pdfStream) freshTableLineCapacity() int {
+	top := s.cfg.Margin + s.cfg.FontSize
+	bottom := s.pageH - s.cfg.Margin
+	if bottom <= top {
+		return 0
+	}
+	return int((bottom - top) / s.baseLineHeight)
+}
+
+func pdfTableLineStrings(lines []pdfTableLine) []string {
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, pdfTableLineString(line))
+	}
+	return out
+}
+
+func pdfTableLineString(line pdfTableLine) string {
+	var b strings.Builder
+	for _, segment := range line {
+		b.WriteString(segment.Text)
+	}
+	return b.String()
+}
+
+func (s *pdfStream) writeRowBufferedTable(row mdf.TableRow) error {
+	if !s.tablePlanReady {
+		s.tableRows = append(s.tableRows, row)
+		if len(s.tableRows) < 2 {
+			return nil
+		}
+		s.tablePlan = mdf.NewTableTextPlan(s.tableRows, s.tableAlignments, s.tableLayoutWidth(), s.cfg.TableWireMode)
+		s.tablePlanReady = true
+		s.setTableContinuation(s.tablePlan, s.tableRows)
+		lines := append([]string{}, s.tablePlan.TopBorder()...)
+		lines = append(lines, s.tablePlan.RowLines(s.tableRows[0])...)
+		if s.tableRows[0].Header {
+			lines = append(lines, s.tablePlan.HeaderBorder()...)
+		}
+		lines = append(lines, s.tablePlan.RowLines(s.tableRows[1])...)
+		lines = append(lines, s.tablePlan.BottomBorder()...)
+		s.ensureTableFitsWithoutContinuation(lines)
+		for _, line := range s.tablePlan.StyledTopBorder() {
+			s.emitTableLineRaw(line)
+		}
+		if s.tableRows[0].Header {
+			for _, line := range s.tablePlan.StyledRowLines(s.tableRows[0]) {
+				s.emitTableLineRaw(line)
+			}
+			for _, line := range s.tablePlan.StyledHeaderBorder() {
+				s.emitTableLineRaw(line)
+			}
+			s.emitRowBufferedTableLines(s.tablePlan.StyledRowLines(s.tableRows[1]))
+		} else {
+			s.emitRowBufferedTableLines(s.tablePlan.StyledRowLines(s.tableRows[0]))
+			s.emitRowBufferedTableLines(s.tablePlan.StyledRowLines(s.tableRows[1]))
+		}
+		s.tableRows = s.tableRows[:0]
+		return nil
+	}
+	s.emitRowBufferedTableLines(s.tablePlan.StyledRowLines(row))
+	return nil
+}
+
+func (s *pdfStream) emitRowBufferedTableLines(lines []pdfTableLine) {
+	if len(lines) == 0 {
+		return
+	}
+	bottom := s.tablePlan.StyledBottomBorder()
+	continuation := s.tableContinuation
+	reserved := len(bottom)
+	if s.tableLinesFit(len(lines) + reserved) {
+		for _, line := range lines {
+			s.emitTableLineRaw(line)
+		}
+		return
+	}
+	fragmentOpen := true
+	if len(lines)+len(continuation)+reserved <= s.freshTableLineCapacity() {
+		s.emitTableFragmentBreak(bottom, continuation, &fragmentOpen)
+		for _, line := range lines {
+			s.emitTableLineRaw(line)
+		}
+		return
+	}
+	for _, line := range lines {
+		if !s.tableLinesFit(1 + reserved) {
+			s.emitTableFragmentBreak(bottom, continuation, &fragmentOpen)
+		}
+		s.emitTableLineRaw(line)
+		fragmentOpen = true
+	}
+}
+
+func (s *pdfStream) flushRowBufferedTable() error {
+	if !s.tablePlanReady {
+		lines := s.fullTableLines()
+		s.ensureTableFits(pdfTableLineStrings(lines))
+		for _, line := range lines {
+			s.emitTableLine(line)
+		}
+		return nil
+	}
+	lines := s.tablePlan.BottomBorder()
+	s.ensureTableFits(lines)
+	for _, line := range s.tablePlan.StyledBottomBorder() {
+		s.emitTableLine(line)
+	}
+	return nil
+}
+
+func (s *pdfStream) ensureTableFits(lines []string) {
+	s.ensureTableFitsWithContinuation(lines, true)
+}
+
+func (s *pdfStream) ensureTableFitsWithoutContinuation(lines []string) {
+	s.ensureTableFitsWithContinuation(lines, false)
+}
+
+func (s *pdfStream) ensureTableFitsWithContinuation(lines []string, includeContinuation bool) {
+	if len(lines) == 0 {
+		return
+	}
+	currentLineCount := len(lines)
+	freshLineCount := currentLineCount
+	if includeContinuation && s.tableActive && s.tablePlanReady && len(s.tableContinuation) > 0 {
+		freshLineCount += len(s.tableContinuation)
+	}
+	currentHeight := float64(currentLineCount) * s.baseLineHeight
+	freshHeight := float64(freshLineCount) * s.baseLineHeight
+	bottom := s.pageH - s.cfg.Margin
+	freshTop := s.cfg.Margin + s.cfg.FontSize
+	if s.y+currentHeight > bottom && freshTop+freshHeight <= bottom {
+		pageBefore := s.pageNum
+		s.pageBreak()
+		if includeContinuation && s.tableActive && s.pageNum != pageBefore && len(s.tableContinuation) > 0 {
+			s.tableContinuePending = true
+		}
+	}
+}
+
+func (s *pdfStream) emitTableLine(line pdfTableLine) {
+	if s.tableContinuePending {
+		s.tableContinuePending = false
+		for _, continuation := range s.tableContinuation {
+			s.emitTableLineRaw(continuation)
+		}
+	}
+	pageBefore := s.pageNum
+	s.emitTableLineRaw(line)
+	if s.tableActive && s.pageNum != pageBefore && len(s.tableContinuation) > 0 {
+		s.tableContinuePending = true
+	}
+}
+
+func (s *pdfStream) emitTableLineRaw(line pdfTableLine) {
+	if s.tableLineObserver != nil {
+		s.tableLineObserver(pdfTableLineString(line))
+	}
+	if !s.atLineStart {
+		s.emitBoundary(boundaryNewline)
+	}
+	for _, segment := range s.tablePrefix {
+		for _, r := range segment.Text {
+			s.emitTextDirect(string(r), segment.Style)
+			s.atLineStart = false
+		}
+	}
+	for _, segment := range line {
+		if segment.TokenKind == mdf.TokenLinkStart {
+			s.currentLink = segment.LinkURL
+			continue
+		}
+		if segment.TokenKind == mdf.TokenLinkEnd {
+			s.currentLink = ""
+			continue
+		}
+		previousLink := s.currentLink
+		if segment.LinkURL != "" {
+			s.currentLink = segment.LinkURL
+		}
+		style := s.styles.Text
+		if segment.Kind == mdf.TableTextSegmentWire {
+			style = s.tableWireStyle
+		} else if segment.Kind == mdf.TableTextSegmentHeader {
+			style = s.tableHeaderStyle
+			if segment.Style.Prefix != "" {
+				style = pdfTableHeaderStyle(s.tableHeaderStyle, segment.Style)
+			}
+		} else if segment.Style.Prefix != "" {
+			style = segment.Style
+		}
+		for _, r := range segment.Text {
+			s.emitTextDirect(string(r), style)
+			s.atLineStart = false
+		}
+		if segment.LinkURL != "" {
+			s.currentLink = previousLink
+		}
+	}
+	s.emitBoundary(boundaryNewline)
+}
+
+func pdfTableHeaderStyle(header mdf.Style, inline mdf.Style) mdf.Style {
+	if inline.Prefix == "" {
+		return header
+	}
+	return mdf.Style{Prefix: header.Prefix + pdfStripANSIForeground(inline.Prefix)}
+}
+
+func pdfStripANSIForeground(prefix string) string {
+	var b strings.Builder
+	for i := 0; i < len(prefix); {
+		if prefix[i] != '\x1b' || i+1 >= len(prefix) || prefix[i+1] != '[' {
+			b.WriteByte(prefix[i])
+			i++
+			continue
+		}
+		end := strings.IndexByte(prefix[i+2:], 'm')
+		if end < 0 {
+			b.WriteString(prefix[i:])
+			break
+		}
+		end += i + 2
+		params := strings.Split(prefix[i+2:end], ";")
+		kept := pdfStripANSIForegroundParams(params)
+		if len(kept) > 0 {
+			b.WriteString("\x1b[")
+			b.WriteString(strings.Join(kept, ";"))
+			b.WriteByte('m')
+		}
+		i = end + 1
+	}
+	return b.String()
+}
+
+func pdfStripANSIForegroundParams(params []string) []string {
+	if len(params) == 0 {
+		return nil
+	}
+	kept := make([]string, 0, len(params))
+	for i := 0; i < len(params); i++ {
+		n, err := strconv.Atoi(params[i])
+		if err != nil {
+			kept = append(kept, params[i])
+			continue
+		}
+		switch {
+		case n == 38:
+			if i+1 < len(params) {
+				mode, _ := strconv.Atoi(params[i+1])
+				if mode == 5 {
+					i += 2
+					continue
+				}
+				if mode == 2 {
+					i += 4
+					continue
+				}
+			}
+			continue
+		case n == 39:
+			continue
+		case n >= 30 && n <= 37:
+			continue
+		case n >= 90 && n <= 97:
+			continue
+		default:
+			kept = append(kept, params[i])
+		}
+	}
+	return kept
+}
+
+func (s *pdfStream) setTableContinuation(plan mdf.TableTextPlan, rows []mdf.TableRow) {
+	s.tableContinuation = s.tableContinuation[:0]
+	s.tableContinuation = append(s.tableContinuation, plan.StyledTopBorder()...)
+	if len(rows) == 0 || !rows[0].Header {
+		return
+	}
+	s.tableContinuation = append(s.tableContinuation, plan.StyledRowLines(rows[0])...)
+	s.tableContinuation = append(s.tableContinuation, plan.StyledHeaderBorder()...)
+}
+
+func (s *pdfStream) tableLayoutWidth() int {
+	if s.width <= 0 {
+		return s.width
+	}
+	width := s.width
+	for _, segment := range s.tablePrefix {
+		width -= len([]rune(segment.Text))
+	}
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
 func (s *pdfStream) Flush() error {
+	if s.tableActive {
+		if err := s.EndTable(); err != nil {
+			return err
+		}
+	}
 	if len(s.nbspBuf) > 0 {
 		s.flushNBSPBuf()
 	}
@@ -500,7 +1014,7 @@ func (s *pdfStream) processAtomRaw(a atom) error {
 }
 
 func (s *pdfStream) handleNBSPAtom(a atom) bool {
-	if a.Kind == tokenCode {
+	if a.Kind == tokenCode || a.Kind == tokenDecodedEntity {
 		if len(s.nbspBuf) > 0 {
 			s.flushNBSPBuf()
 		}
@@ -882,6 +1396,15 @@ func (s *pdfStream) renderHeadingBlock() {
 	if s.y > s.cfg.Margin+s.cfg.FontSize {
 		before = pstyle.size * headingSpaceBeforeMultiplier
 	}
+	if s.tableJustEnded {
+		if !s.tableStartedFreshPage {
+			before = 0
+		} else if before < s.baseLineHeight {
+			before = s.baseLineHeight
+		}
+		s.tableJustEnded = false
+		s.tableStartedFreshPage = false
+	}
 	after := s.baseLineHeight
 	afterCandidate := pstyle.size * headingSpaceAfterMultiplier
 	if afterCandidate > after {
@@ -1024,6 +1547,7 @@ func (s *pdfStream) emitText(text string, style mdf.Style) {
 		s.headingBuf.WriteString(text)
 		return
 	}
+	s.tableJustEnded = false
 	s.emitTextDirect(text, style)
 }
 

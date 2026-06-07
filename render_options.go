@@ -4,8 +4,10 @@ package mdf
 type RenderOption func(*renderConfig)
 
 type renderConfig struct {
-	osc8     bool
-	softWrap bool
+	osc8            bool
+	softWrap        bool
+	tableBufferMode TableBufferMode
+	tableWireMode   TableWireMode
 }
 
 // WithOSC8 enables or disables OSC 8 hyperlinks.
@@ -19,5 +21,34 @@ func WithOSC8(enabled bool) RenderOption {
 func WithSoftWrap(enabled bool) RenderOption {
 	return func(cfg *renderConfig) {
 		cfg.softWrap = enabled
+	}
+}
+
+// WithTableBufferMode configures how table renderers buffer rows.
+// Invalid modes fall back to TableBufferFull.
+func WithTableBufferMode(mode TableBufferMode) RenderOption {
+	return func(cfg *renderConfig) {
+		cfg.tableBufferMode = mode
+	}
+}
+
+// WithTableWireMode configures the visible separators used for tables.
+// Invalid modes fall back to TableWireLine.
+func WithTableWireMode(mode TableWireMode) RenderOption {
+	return func(cfg *renderConfig) {
+		cfg.tableWireMode = mode
+	}
+}
+
+func normalizeRenderConfig(cfg *renderConfig) {
+	switch cfg.tableBufferMode {
+	case TableBufferFull, TableBufferRow:
+	default:
+		cfg.tableBufferMode = TableBufferFull
+	}
+	switch cfg.tableWireMode {
+	case TableWireLine, TableWireASCII, TableWireSpace:
+	default:
+		cfg.tableWireMode = TableWireLine
 	}
 }

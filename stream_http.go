@@ -9,11 +9,17 @@ import (
 
 // HTTPRenderRequest configures HTTPRender.
 type HTTPRenderRequest struct {
-	URL     string
-	Client  *http.Client
-	Writer  io.Writer
-	Width   int
-	Theme   Theme
+	// URL is the HTTP or HTTPS Markdown source.
+	URL string
+	// Client is used to fetch URL. If nil, http.DefaultClient is used.
+	Client *http.Client
+	// Writer receives ANSI-rendered Markdown.
+	Writer io.Writer
+	// Width is the target terminal width in cells. Values <= 0 disable wrapping.
+	Width int
+	// Theme controls semantic ANSI styles. If nil, DefaultTheme is used.
+	Theme Theme
+	// Options configures renderer behavior such as OSC 8 links and tables.
 	Options []RenderOption
 }
 

@@ -7,7 +7,8 @@ Markdown *FAST!* is a high-performance Markdown → ANSI renderer optimized for 
 ## Design
 
 - Stream parse from an `io.Reader`.
-- Emit tokens as soon as decisions are made (no line buffering).
+- Emit tokens as soon as block decisions are made, using only bounded lookahead
+  for ambiguous Markdown constructs such as no-edge pipe tables.
 - Wrap only at the final step with ANSI-aware reflow.
 - Zero/near-zero alloc in hot paths.
 - PDF renderer uses the same streaming pipeline: `io.Reader` → tokens → `io.Writer`.
@@ -28,7 +29,13 @@ sudo make install
 mdf -t synthwave-84 testdata/agents.md
 
 # Generate PDF:
-mdf -o agents.pdf --pdf-font-size 10 https://pkt.systems/centaur.md
+mdf -o agents.pdf --pdf --pdf-font-size 10 https://pkt.systems/centaur.md
+
+# Generate self-contained HTML:
+mdf --html -o agents.html --html-content-width 96 testdata/agents.md
+
+# Choose table buffering and table wire style:
+mdf --table-buffer row --table-wire ascii testdata/agents.md
 ```
 
 List themes:
@@ -74,6 +81,42 @@ _ = pdf.Render(pdf.RenderRequest{
 	Config: cfg,
 })
 ```
+
+## SDK: HTML rendering
+
+```go
+f, _ := os.Open("testdata/agents.md")
+defer f.Close()
+
+cfg := html.DefaultConfig()
+cfg.ContentMaxWidthCh = 96
+cfg.TableBufferMode = mdf.TableBufferFull
+
+_ = html.Render(html.RenderRequest{
+	Reader: f,
+	Writer: os.Stdout,
+	Theme:  mdf.DefaultTheme(),
+	Config: cfg,
+})
+```
+
+HTML output is self-contained and embeds fonts by default. Markdown thematic
+breaks are consumed as structural separators and are intentionally not emitted
+as visible `<hr>` rules.
+
+## Tables
+
+Markdown pipe tables are parsed as structured streaming events for renderers
+that implement `mdf.TableStream`.
+
+- `TableBufferFull` buffers the complete table for best column sizing.
+- `TableBufferRow` buffers enough rows to establish layout, then emits rows as
+  they arrive.
+- `TableWireLine` uses Unicode box drawing, `TableWireASCII` uses `+`, `-`,
+  and `|`, and `TableWireSpace` removes visible table borders.
+
+HTML supports `line` and `space` wire modes. PDF and ANSI support all three wire
+modes.
 
 ## Streaming pipeline pattern
 

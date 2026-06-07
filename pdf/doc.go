@@ -2,7 +2,12 @@
 //
 // The renderer consumes an io.Reader and writes a PDF to an io.Writer. It
 // supports theme-driven colors, configurable page layout, optional corner
-// images, embedded fonts, and a single-file split screen/print mode.
+// images, embedded fonts, Markdown tables, and a single-file split screen/print
+// mode.
+//
+// Tables support full buffering for best column sizing and row buffering for
+// lower-latency streaming. Both modes frame page fragments when tables continue
+// across PDF pages.
 //
 // The split screen/print mode keeps boring print content as the real page
 // content and overlays the themed screen presentation through appearance

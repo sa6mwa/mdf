@@ -53,6 +53,25 @@ func TestRenderPDFSkipsUnsupportedRunes(t *testing.T) {
 	}
 }
 
+func TestApplyConfigKeepsDefaultTableBufferForPartialConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	applyConfig(&cfg, Config{Margin: 24})
+	if cfg.Margin != 24 {
+		t.Fatalf("margin = %v, want 24", cfg.Margin)
+	}
+	if cfg.TableBufferMode != mdf.TableBufferFull {
+		t.Fatalf("table buffer mode = %v, want %v", cfg.TableBufferMode, mdf.TableBufferFull)
+	}
+}
+
+func TestApplyConfigAllowsExplicitFullTableBuffer(t *testing.T) {
+	cfg := DefaultConfig()
+	applyConfig(&cfg, Config{TableBufferMode: mdf.TableBufferFull})
+	if cfg.TableBufferMode != mdf.TableBufferFull {
+		t.Fatalf("table buffer mode = %v, want %v", cfg.TableBufferMode, mdf.TableBufferFull)
+	}
+}
+
 func TestImageTypeForPath(t *testing.T) {
 	cases := map[string]string{
 		"/tmp/foo.png":  "PNG",

@@ -24,9 +24,13 @@ const (
 
 // RenderRequest contains inputs for PDF rendering.
 type RenderRequest struct {
+	// Reader supplies Markdown input. Render reads it incrementally.
 	Reader io.Reader
+	// Writer receives the generated PDF bytes.
 	Writer io.Writer
-	Theme  mdf.Theme
+	// Theme controls semantic styles. If nil, mdf.DefaultTheme is used.
+	Theme mdf.Theme
+	// Config controls page layout, fonts, colors, images, and tables.
 	Config Config
 }
 
@@ -397,6 +401,45 @@ func (f *fanoutStream) WriteToken(tok mdf.StreamToken) error {
 	return nil
 }
 
+func (f *fanoutStream) StartTable(table mdf.TableStart) error {
+	for _, stream := range f.streams {
+		tableStream, ok := stream.(mdf.TableStream)
+		if !ok {
+			continue
+		}
+		if err := tableStream.StartTable(table); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *fanoutStream) WriteTableRow(row mdf.TableRow) error {
+	for _, stream := range f.streams {
+		tableStream, ok := stream.(mdf.TableStream)
+		if !ok {
+			continue
+		}
+		if err := tableStream.WriteTableRow(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *fanoutStream) EndTable() error {
+	for _, stream := range f.streams {
+		tableStream, ok := stream.(mdf.TableStream)
+		if !ok {
+			continue
+		}
+		if err := tableStream.EndTable(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *fanoutStream) Flush() error {
 	for _, stream := range f.streams {
 		if err := stream.Flush(); err != nil {
@@ -503,6 +546,14 @@ func applyConfig(dst *Config, src Config) {
 	}
 	if src.CornerImagePadding > 0 {
 		dst.CornerImagePadding = src.CornerImagePadding
+	}
+	switch src.TableBufferMode {
+	case mdf.TableBufferFull, mdf.TableBufferRow:
+		dst.TableBufferMode = src.TableBufferMode
+	}
+	switch src.TableWireMode {
+	case mdf.TableWireLine, mdf.TableWireASCII, mdf.TableWireSpace:
+		dst.TableWireMode = src.TableWireMode
 	}
 }
 

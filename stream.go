@@ -11,18 +11,22 @@ import (
 	"github.com/muesli/reflow/ansi"
 )
 
-// StreamToken represents a styled inference token with timing.
+// StreamToken represents a styled Markdown token.
 type StreamToken struct {
 	Token
+	// Delay is used by StreamSimulate to pace synthetic streams. Normal
+	// Markdown rendering leaves it at zero.
 	Delay time.Duration
 }
 
-// StreamRenderer renders inference tokens to an io.Writer with hard wrapping.
+// StreamRenderer renders parsed Markdown tokens to an io.Writer with ANSI-aware wrapping.
 type StreamRenderer struct {
 	w                 io.Writer
 	width             int
 	osc8              bool
 	softWrap          bool
+	tableBufferMode   TableBufferMode
+	tableWireMode     TableWireMode
 	lineWidth         int
 	style             string
 	pending           wordBuffer
@@ -38,6 +42,14 @@ type StreamRenderer struct {
 	codeFlushPending  bool
 	nbspBuf           []atom
 	punctQuotePending bool
+	tableActive       bool
+	tableAlignments   []TableAlignment
+	tableHeaderStyle  Style
+	tableWireStyle    Style
+	tablePrefix       []tableSegment
+	tableRows         []TableRow
+	tableLayout       tableLayout
+	tableLayoutReady  bool
 
 	pendingAtomsBuf  [512]StreamToken
 	pendingSpacesBuf [128]StreamToken
@@ -47,12 +59,15 @@ type StreamRenderer struct {
 	carryRunesArr    [2]rune
 	indentArenaArr   [256]byte
 	nbspBufArr       [6]atom
+	tableAlignArr    [16]TableAlignment
+	tablePrefixArr   [8]tableSegment
+	tableRowsArr     [8]TableRow
 
 	wordRunes  []rune
 	carryRunes []rune
 }
 
-// NewStreamRenderer creates a streaming renderer.
+// NewStreamRenderer creates a streaming ANSI renderer for an io.Writer.
 func NewStreamRenderer(w io.Writer, width int, opts ...RenderOption) *StreamRenderer {
 	cfg := renderConfig{}
 	for _, opt := range opts {
@@ -60,23 +75,28 @@ func NewStreamRenderer(w io.Writer, width int, opts ...RenderOption) *StreamRend
 			opt(&cfg)
 		}
 	}
+	normalizeRenderConfig(&cfg)
 	s := &StreamRenderer{}
 	s.resetWithConfig(w, width, cfg)
 	return s
 }
 
 // Reset clears stream state for reuse with a new writer or width.
+// Existing renderer options such as OSC 8 and table modes are preserved.
 func (s *StreamRenderer) Reset(w io.Writer, width int) {
-	cfg := renderConfig{osc8: s.osc8, softWrap: s.softWrap}
+	cfg := renderConfig{osc8: s.osc8, softWrap: s.softWrap, tableBufferMode: s.tableBufferMode, tableWireMode: s.tableWireMode}
 	s.resetWithConfig(w, width, cfg)
 }
 
 func (s *StreamRenderer) resetWithConfig(w io.Writer, width int, cfg renderConfig) {
+	normalizeRenderConfig(&cfg)
 	s.initBuffers()
 	s.w = w
 	s.width = width
 	s.osc8 = cfg.osc8
 	s.softWrap = cfg.softWrap
+	s.tableBufferMode = cfg.tableBufferMode
+	s.tableWireMode = cfg.tableWireMode
 	s.lineWidth = 0
 	s.style = ""
 	s.pending.atoms = s.pendingAtomsBuf[:0]
@@ -94,6 +114,244 @@ func (s *StreamRenderer) resetWithConfig(w io.Writer, width int, cfg renderConfi
 	s.codeFlushPending = false
 	s.nbspBuf = s.nbspBufArr[:0]
 	s.punctQuotePending = false
+	s.tableActive = false
+	s.tableAlignments = s.tableAlignArr[:0]
+	s.tableHeaderStyle = Style{}
+	s.tableWireStyle = Style{}
+	s.tablePrefix = s.tablePrefixArr[:0]
+	s.tableRows = s.tableRowsArr[:0]
+	s.tableLayoutReady = false
+}
+
+// StartTable starts a streamed markdown table.
+func (s *StreamRenderer) StartTable(table TableStart) error {
+	if err := s.flushInlineForBlock(); err != nil {
+		return err
+	}
+	s.tableActive = true
+	s.tableAlignments = s.tableAlignments[:0]
+	s.tableAlignments = append(s.tableAlignments, table.Alignments...)
+	s.tableHeaderStyle = table.HeaderStyle
+	s.tableWireStyle = table.WireStyle
+	s.tablePrefix = s.tablePrefix[:0]
+	for _, segment := range table.Prefix {
+		s.tablePrefix = append(s.tablePrefix, tableSegment{Text: segment.Text, Style: segment.Style})
+	}
+	s.tableRows = s.tableRows[:0]
+	s.tableLayoutReady = false
+	return nil
+}
+
+// WriteTableRow writes one markdown table row.
+func (s *StreamRenderer) WriteTableRow(row TableRow) error {
+	if !s.tableActive {
+		if err := s.StartTable(TableStart{}); err != nil {
+			return err
+		}
+	}
+	if s.tableBufferMode == TableBufferRow {
+		return s.writeTableRowBuffered(row)
+	}
+	s.tableRows = append(s.tableRows, row)
+	return nil
+}
+
+// EndTable finishes a streamed markdown table.
+func (s *StreamRenderer) EndTable() error {
+	if s.tableActive && s.tableBufferMode == TableBufferFull && len(s.tableRows) > 0 {
+		if err := s.writeTableLines(layoutTable(s.tableRows, s.tableAlignments, s.tableLayoutWidth(), s.tableWireMode)); err != nil {
+			return err
+		}
+	} else if s.tableActive && s.tableBufferMode == TableBufferRow {
+		if err := s.flushPendingRowTable(); err != nil {
+			return err
+		}
+	}
+	s.tableActive = false
+	s.tableAlignments = s.tableAlignments[:0]
+	s.tableHeaderStyle = Style{}
+	s.tableWireStyle = Style{}
+	s.tablePrefix = s.tablePrefix[:0]
+	s.tableRows = s.tableRows[:0]
+	s.tableLayoutReady = false
+	return nil
+}
+
+func (s *StreamRenderer) writeTableRowBuffered(row TableRow) error {
+	if !s.tableLayoutReady {
+		s.tableRows = append(s.tableRows, row)
+		if len(s.tableRows) < 2 {
+			return nil
+		}
+		s.tableLayout = buildTableLayout(s.tableRows, s.tableAlignments, s.tableLayoutWidth(), s.tableWireMode)
+		s.tableLayoutReady = true
+		if s.tableWireMode != TableWireSpace {
+			if err := s.writeTableLines([]tableLine{s.tableLayout.borderLine(tableBorderTop)}); err != nil {
+				return err
+			}
+		}
+		if err := s.writeTableLines(s.tableLayout.rowLines(s.tableRows[0])); err != nil {
+			return err
+		}
+		if s.tableRows[0].Header && s.tableWireMode != TableWireSpace {
+			if err := s.writeTableLines([]tableLine{s.tableLayout.borderLine(tableBorderMiddle)}); err != nil {
+				return err
+			}
+		}
+		if err := s.writeTableLines(s.tableLayout.rowLines(s.tableRows[1])); err != nil {
+			return err
+		}
+		s.tableRows = s.tableRows[:0]
+		return nil
+	}
+	return s.writeTableLines(s.tableLayout.rowLines(row))
+}
+
+func (s *StreamRenderer) flushPendingRowTable() error {
+	if !s.tableLayoutReady {
+		return s.writeTableLines(layoutTable(s.tableRows, s.tableAlignments, s.tableLayoutWidth(), s.tableWireMode))
+	}
+	if s.tableWireMode != TableWireSpace {
+		return s.writeTableLines([]tableLine{s.tableLayout.borderLine(tableBorderBottom)})
+	}
+	return nil
+}
+
+func (s *StreamRenderer) writeTableLines(lines []tableLine) error {
+	for _, line := range lines {
+		activeLink := ""
+		for _, segment := range s.tablePrefix {
+			if err := s.writeRawStyled(segment.Text, segment.Style); err != nil {
+				return err
+			}
+		}
+		for _, segment := range line {
+			if segment.TokenKind == tokenLinkStart || segment.TokenKind == tokenLinkEnd {
+				if err := s.writeLinkToken(StreamToken{Token: Token{Kind: segment.TokenKind, LinkURL: segment.LinkURL}}); err != nil {
+					return err
+				}
+				if segment.TokenKind == tokenLinkStart {
+					activeLink = segment.LinkURL
+				} else {
+					activeLink = ""
+				}
+				continue
+			}
+			linkURL := segment.LinkURL
+			if segment.Text == "" {
+				linkURL = ""
+			}
+			if activeLink != linkURL {
+				if activeLink != "" {
+					if err := s.writeLinkToken(StreamToken{Token: Token{Kind: tokenLinkEnd}}); err != nil {
+						return err
+					}
+				}
+				if linkURL != "" {
+					if err := s.writeLinkToken(StreamToken{Token: Token{Kind: tokenLinkStart, LinkURL: linkURL}}); err != nil {
+						return err
+					}
+				}
+				activeLink = linkURL
+			}
+			style := Style{}
+			if segment.Kind == tableSegmentWire {
+				style = s.tableWireStyle
+			} else if segment.Kind == tableSegmentHeader {
+				style = s.tableHeaderStyle
+				if segment.Style.Prefix != "" {
+					style = combineTableHeaderStyle(s.tableHeaderStyle, segment.Style)
+				}
+			} else if segment.Style.Prefix != "" {
+				style = segment.Style
+			}
+			if err := s.writeRawStyled(segment.Text, style); err != nil {
+				return err
+			}
+		}
+		if activeLink != "" {
+			if err := s.writeLinkToken(StreamToken{Token: Token{Kind: tokenLinkEnd}}); err != nil {
+				return err
+			}
+		}
+		if s.style != "" {
+			if _, err := io.WriteString(s.w, ansiReset); err != nil {
+				return err
+			}
+			s.style = ""
+		}
+		if _, err := io.WriteString(s.w, "\n"); err != nil {
+			return err
+		}
+		s.atLineStart = true
+		s.lastWasNewline = true
+		s.lineWidth = 0
+		s.wrapIndent = ""
+		s.prefixBuf = s.prefixBuf[:0]
+	}
+	return nil
+}
+
+func (s *StreamRenderer) tableLayoutWidth() int {
+	if s.width <= 0 {
+		return s.width
+	}
+	width := s.width - tableLineWidth(s.tablePrefix)
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
+func (s *StreamRenderer) writeRawStyled(text string, style Style) error {
+	if style.Prefix != s.style {
+		if s.style != "" {
+			if _, err := io.WriteString(s.w, ansiReset); err != nil {
+				return err
+			}
+		}
+		if style.Prefix != "" {
+			if _, err := io.WriteString(s.w, style.Prefix); err != nil {
+				return err
+			}
+		}
+		s.style = style.Prefix
+	}
+	_, err := io.WriteString(s.w, text)
+	return err
+}
+
+func (s *StreamRenderer) flushInlineForBlock() error {
+	if len(s.nbspBuf) > 0 {
+		s.flushNBSPBuf()
+	}
+	if s.punctQuotePending {
+		s.flushWord(boundaryNone)
+		s.punctQuotePending = false
+	}
+	if len(s.pending.atoms) > 0 {
+		s.flushWord(boundaryNone)
+	} else if len(s.pendingSpaces) > 0 {
+		if err := s.emitAtoms(s.pendingSpaces); err != nil {
+			return err
+		}
+		s.pendingSpaces = s.pendingSpaces[:0]
+	}
+	if s.style != "" {
+		if _, err := io.WriteString(s.w, ansiReset); err != nil {
+			return err
+		}
+		s.style = ""
+	}
+	if !s.lastWasNewline {
+		if _, err := io.WriteString(s.w, "\n"); err != nil {
+			return err
+		}
+		s.lastWasNewline = true
+	}
+	s.lineWidth = 0
+	s.atLineStart = true
+	return nil
 }
 
 func (s *StreamRenderer) initBuffers() {
@@ -145,7 +403,7 @@ func (s *StreamRenderer) SetWrapIndent(indent string) {
 	s.setWrapIndent(indent)
 }
 
-// WriteToken writes a single inference token, honoring its delay.
+// WriteToken writes a single Markdown token, honoring Delay when set.
 func (s *StreamRenderer) WriteToken(tok StreamToken) error {
 	if tok.Kind == tokenLinkStart || tok.Kind == tokenLinkEnd {
 		return s.writeLinkToken(tok)
@@ -225,6 +483,11 @@ func (s *StreamRenderer) WriteToken(tok StreamToken) error {
 
 // Flush resets the style at the end of a stream.
 func (s *StreamRenderer) Flush() error {
+	if s.tableActive {
+		if err := s.EndTable(); err != nil {
+			return err
+		}
+	}
 	if len(s.nbspBuf) > 0 {
 		s.flushNBSPBuf()
 	}
@@ -600,7 +863,7 @@ func (s *StreamRenderer) processAtomRaw(a atom) error {
 }
 
 func (s *StreamRenderer) handleNBSPAtom(a atom) bool {
-	if a.Kind == tokenCode {
+	if a.Kind == tokenCode || a.Kind == tokenDecodedEntity {
 		if len(s.nbspBuf) > 0 {
 			s.flushNBSPBuf()
 		}

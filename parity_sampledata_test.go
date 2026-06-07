@@ -22,7 +22,9 @@ func TestRenderSampledataParity(t *testing.T) {
 		if d.IsDir() {
 			return nil
 		}
-		if strings.Contains(filepath.ToSlash(path), "testdata/future/") {
+		slashPath := filepath.ToSlash(path)
+		if strings.Contains(slashPath, "testdata/future/") ||
+			strings.Contains(slashPath, "testdata/table-corpus/") {
 			return nil
 		}
 		if strings.HasSuffix(path, ".md") {

@@ -2,6 +2,7 @@ package mdf
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,7 +14,10 @@ import (
 )
 
 type captureStream struct {
-	tokens []StreamToken
+	tokens      []StreamToken
+	tableStarts []TableStart
+	tableRows   []TableRow
+	tableEnds   int
 }
 
 func (c *captureStream) WriteToken(tok StreamToken) error {
@@ -21,9 +25,43 @@ func (c *captureStream) WriteToken(tok StreamToken) error {
 	return nil
 }
 
+func (c *captureStream) StartTable(table TableStart) error {
+	c.tableStarts = append(c.tableStarts, table)
+	return nil
+}
+
+func (c *captureStream) WriteTableRow(row TableRow) error {
+	c.tableRows = append(c.tableRows, row)
+	return nil
+}
+
+func (c *captureStream) EndTable() error {
+	c.tableEnds++
+	return nil
+}
+
 func (c *captureStream) Flush() error {
 	return nil
 }
+
+type plainCaptureStream struct {
+	tokens []StreamToken
+}
+
+func (c *plainCaptureStream) WriteToken(tok StreamToken) error {
+	c.tokens = append(c.tokens, tok)
+	return nil
+}
+
+func (c *plainCaptureStream) Flush() error {
+	return nil
+}
+
+func (c *plainCaptureStream) Width() int { return 0 }
+
+func (c *plainCaptureStream) SetWidth(int) {}
+
+func (c *plainCaptureStream) SetWrapIndent(string) {}
 
 func (c *captureStream) Width() int {
 	return 80
@@ -32,6 +70,32 @@ func (c *captureStream) Width() int {
 func (c *captureStream) SetWidth(int) {}
 
 func (c *captureStream) SetWrapIndent(string) {}
+
+type legacyTokenStream struct {
+	tokens []StreamToken
+}
+
+func (s *legacyTokenStream) WriteToken(tok StreamToken) error {
+	s.tokens = append(s.tokens, tok)
+	return nil
+}
+
+func (s *legacyTokenStream) Flush() error { return nil }
+
+func (s *legacyTokenStream) Width() int { return 80 }
+
+func (s *legacyTokenStream) SetWidth(int) {}
+
+func (s *legacyTokenStream) SetWrapIndent(string) {}
+
+type endTableFailStream struct {
+	captureStream
+	err error
+}
+
+func (s *endTableFailStream) EndTable() error {
+	return s.err
+}
 
 func TestLiveParserEmitsThematicBreakToken(t *testing.T) {
 	src := "one\n---\ntwo\n"
@@ -53,6 +117,149 @@ func TestLiveParserEmitsThematicBreakToken(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected thematic break token")
+	}
+}
+
+func TestLiveParserStreamsPlainParagraphBeforeNewline(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &plainCaptureStream{}
+	for _, r := range "hello" {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+		if len(stream.tokens) > 0 {
+			return
+		}
+	}
+	t.Fatalf("expected plain paragraph tokens before newline or EOF")
+}
+
+func TestLiveParserStreamsSingleRuneParagraphBeforeNewline(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &plainCaptureStream{}
+	if err := parser.feedRune(stream, 'a'); err != nil {
+		t.Fatalf("feed rune: %v", err)
+	}
+	if len(stream.tokens) == 0 {
+		t.Fatalf("expected single-rune paragraph token before newline or EOF")
+	}
+}
+
+func TestLiveParserStreamsCapitalizedParagraphBeforeNewline(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &plainCaptureStream{}
+	for _, r := range "Hello" {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+		if len(stream.tokens) > 0 {
+			return
+		}
+	}
+	t.Fatalf("expected capitalized paragraph tokens before newline or EOF")
+}
+
+func TestLiveParserStreamsSpaceTerminatedParagraphBeforeNewline(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &plainCaptureStream{}
+	for _, r := range "hello " {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+	}
+	if len(stream.tokens) == 0 {
+		t.Fatalf("expected space-terminated paragraph tokens before newline or EOF")
+	}
+}
+
+func TestLiveParserTableCapableParagraphStreamsAfterNoEdgeLookaheadLimit(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &captureStream{}
+	for _, r := range strings.Repeat("a", maxNoEdgeTableFirstCellPreludeRunes+1) {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+		if len(stream.tokens) > 0 {
+			return
+		}
+	}
+	t.Fatalf("expected table-capable paragraph to stream after bounded no-edge lookahead")
+}
+
+func TestLiveParserBuffersSingleUppercaseTablePreludeBeforeNewline(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &captureStream{}
+	for _, r := range "A " {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+	}
+	if len(stream.tokens) != 0 {
+		t.Fatalf("expected ambiguous single-uppercase table prelude to remain buffered, got %q", tokenTexts(stream.tokens))
+	}
+	if err := parser.finalize(stream); err != nil {
+		t.Fatalf("finalize: %v", err)
+	}
+	if !strings.Contains(tokenTexts(stream.tokens), "A") {
+		t.Fatalf("expected buffered single-uppercase prelude to flush as paragraph at EOF, got %q", tokenTexts(stream.tokens))
+	}
+}
+
+func TestLiveParserStreamsInlineOnlyPipeParagraphBeforeNewline(t *testing.T) {
+	for _, src := range []string{"`x|y` ok", "[x|y](https://example.com) ok"} {
+		t.Run(src, func(t *testing.T) {
+			parser := newLiveParser(DefaultTheme(), false)
+			stream := &captureStream{}
+			for _, r := range src {
+				if err := parser.feedRune(stream, r); err != nil {
+					t.Fatalf("feed rune: %v", err)
+				}
+			}
+			if len(stream.tokens) == 0 {
+				t.Fatalf("expected inline-only pipe paragraph to stream before newline or EOF")
+			}
+		})
+	}
+}
+
+func TestParseAcceptsLegacyTokenStreamWithoutTableMethods(t *testing.T) {
+	stream := &legacyTokenStream{}
+	err := Parse(ParseRequest{
+		Reader: strings.NewReader("| A | B |\n| --- | --- |\n| 1 | 2 |\n"),
+		Stream: stream,
+		Theme:  DefaultTheme(),
+	})
+	if err != nil {
+		t.Fatalf("parse with legacy token stream: %v", err)
+	}
+	if !strings.Contains(tokenTexts(stream.tokens), "A | B") {
+		t.Fatalf("legacy token stream did not receive table text tokens: %q", tokenTexts(stream.tokens))
+	}
+}
+
+func TestLegacyTokenStreamDoesNotBufferTableLookahead(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &legacyTokenStream{}
+	for _, r := range "a | b" {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+	}
+	if len(stream.tokens) == 0 {
+		t.Fatalf("expected legacy token stream to receive pipe text before newline or EOF")
+	}
+}
+
+func TestParsePropagatesEOFTableEndError(t *testing.T) {
+	endErr := errors.New("end table failed")
+	stream := &endTableFailStream{err: endErr}
+	err := Parse(ParseRequest{
+		Reader: strings.NewReader("| A | B |\n| --- | --- |\n| 1 | 2 |"),
+		Stream: stream,
+		Theme:  DefaultTheme(),
+	})
+	if !errors.Is(err, endErr) {
+		t.Fatalf("expected EOF table end error %v, got %v", endErr, err)
 	}
 }
 
@@ -350,6 +557,123 @@ func TestDecodeEntityNBSP(t *testing.T) {
 	r, ok := decodeEntity([]byte("&nbsp;"))
 	if !ok || r != '\u00A0' {
 		t.Fatalf("expected decodeEntity to return NBSP, got %q ok=%v", r, ok)
+	}
+}
+
+func TestDecodeEntityNamedSpecials(t *testing.T) {
+	cases := []struct {
+		entity string
+		want   rune
+	}{
+		{entity: "&amp;", want: '&'},
+		{entity: "&lt;", want: '<'},
+		{entity: "&gt;", want: '>'},
+		{entity: "&quot;", want: '"'},
+		{entity: "&apos;", want: '\''},
+	}
+	for _, tc := range cases {
+		got, ok := decodeEntity([]byte(tc.entity))
+		if !ok || got != tc.want {
+			t.Fatalf("decodeEntity(%q): got %q ok=%v want %q", tc.entity, got, ok, tc.want)
+		}
+	}
+}
+
+func TestDecodeEntityNamedSpecialsAreCaseSensitive(t *testing.T) {
+	for _, entity := range []string{"&AMP;", "&Lt;", "&Nbsp;", "&Quot;"} {
+		if got, ok := decodeEntity([]byte(entity)); ok {
+			t.Fatalf("decodeEntity(%q): got %q ok=%v, want literal entity", entity, got, ok)
+		}
+	}
+}
+
+func TestRenderDecodesNamedEntities(t *testing.T) {
+	src := "AT&amp;T &lt;tag&gt; &quot;quoted&quot; O&apos;Neil\n"
+	var out bytes.Buffer
+	err := Render(RenderRequest{
+		Reader: strings.NewReader(src),
+		Writer: &out,
+		Width:  80,
+		Theme:  DefaultTheme(),
+	})
+	if err != nil {
+		t.Fatalf("stream live: %v", err)
+	}
+	plain := stripANSI(out.String())
+	if strings.Contains(plain, "&amp;") || strings.Contains(plain, "&lt;") || strings.Contains(plain, "&gt;") {
+		t.Fatalf("expected named entities to decode, got: %q", plain)
+	}
+	if !strings.Contains(plain, "AT&T <tag> \"quoted\" O'Neil") {
+		t.Fatalf("missing decoded named entities: %q", plain)
+	}
+}
+
+func TestRenderKeepsAmpersandsInsideLinkText(t *testing.T) {
+	src := "absent ([Apostolou, Bosch & Holmström Olsson, 2026](https://arxiv.org/abs/2605.14675)) and [AT&amp;T](https://example.com) plus [R&D](https://example.com/rd) and [AT&T](https://example.com/att)\n"
+	var out bytes.Buffer
+	err := Render(RenderRequest{
+		Reader: strings.NewReader(src),
+		Writer: &out,
+		Width:  120,
+		Theme:  DefaultTheme(),
+	})
+	if err != nil {
+		t.Fatalf("stream live: %v", err)
+	}
+	plain := stripANSI(out.String())
+	for _, want := range []string{
+		"absent (Apostolou, Bosch & Holmström Olsson, 2026 (https://arxiv.org/abs/2605.14675))",
+		"AT&T (https://example.com)",
+		"R&D (https://example.com/rd)",
+		"AT&T (https://example.com/att)",
+	} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("missing %q in rendered output: %q", want, plain)
+		}
+	}
+	if strings.Contains(plain, "(&Apostolou") || strings.Contains(plain, "Bosch  Holmström") || strings.Contains(plain, "[R&D]") || strings.Contains(plain, "[AT&T]") {
+		t.Fatalf("ampersand escaped link text buffer: %q", plain)
+	}
+}
+
+func TestRenderDoesNotDoubleDecodeEscapedNBSPEntities(t *testing.T) {
+	src := "x &amp;nbsp; y &amp;#160; z &amp;#xa0; end\n"
+	var out bytes.Buffer
+	err := Render(RenderRequest{
+		Reader: strings.NewReader(src),
+		Writer: &out,
+		Width:  80,
+		Theme:  DefaultTheme(),
+	})
+	if err != nil {
+		t.Fatalf("stream live: %v", err)
+	}
+	plain := stripANSI(out.String())
+	for _, want := range []string{"&nbsp;", "&#160;", "&#xa0;"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("escaped NBSP entity %q was not preserved literally: %q", want, plain)
+		}
+	}
+	if strings.Contains(plain, "x   y") || strings.Contains(plain, "y   z") || strings.Contains(plain, "z   end") {
+		t.Fatalf("escaped NBSP entity was double-decoded into spacing: %q", plain)
+	}
+}
+
+func TestRenderLeavesMixedCaseNamedEntitiesLiteral(t *testing.T) {
+	src := "AT&AMP;T &Lt;tag&Gt;\n"
+	var out bytes.Buffer
+	err := Render(RenderRequest{
+		Reader: strings.NewReader(src),
+		Writer: &out,
+		Width:  80,
+		Theme:  DefaultTheme(),
+	})
+	if err != nil {
+		t.Fatalf("stream live: %v", err)
+	}
+	plain := stripANSI(out.String())
+	if !strings.Contains(plain, "AT&AMP;T &Lt;tag&Gt;") {
+		t.Fatalf("expected mixed-case entities to remain literal, got: %q", plain)
 	}
 }
 

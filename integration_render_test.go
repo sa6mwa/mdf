@@ -55,7 +55,12 @@ func TestIntegrationRenderPlainAndANSI(t *testing.T) {
 		"1. ordered one",
 		"2. ordered two",
 		"",
-		"| Col A | Col B | | --- | --- | | A1 | B1 | | A2 | B2 |",
+		"┌───────┬───────┐",
+		"│ Col A │ Col B │",
+		"├───────┼───────┤",
+		"│ A1    │ B1    │",
+		"│ A2    │ B2    │",
+		"└───────┴───────┘",
 		"",
 		"site (https://example.com)",
 		"",
@@ -86,6 +91,9 @@ func TestIntegrationRenderPlainAndANSI(t *testing.T) {
 	}
 	if !strings.Contains(out, palette.PaletteDefault.LinkText) {
 		t.Fatalf("missing link text ANSI prefix")
+	}
+	if !strings.Contains(out, palette.Faint+"┌") {
+		t.Fatalf("missing table wire ANSI prefix")
 	}
 }
 

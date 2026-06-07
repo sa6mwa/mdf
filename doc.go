@@ -2,14 +2,16 @@
 //
 // This package is built for streaming: it parses incrementally from an io.Reader
 // and emits a style-aware ANSI token stream that is wrapped only at the final
-// output step. The renderer avoids buffering full documents and can handle
-// unbounded streams as they arrive.
+// output step. The renderer avoids buffering full documents; it uses only
+// bounded lookahead where Markdown block recognition requires it, such as
+// no-edge pipe tables.
 //
 // Core properties:
 //   - Streaming-first parsing from io.Reader
 //   - Width-independent render tokens; wrap/reflow is last
 //   - Low allocations in hot paths
 //   - Theme-driven styling via ANSI prefixes
+//   - Structured table events for renderers that implement TableStream
 //
 // Example:
 //
@@ -25,5 +27,5 @@
 //	}
 //
 // The renderer can be customized using RenderOptions such as OSC 8 hyperlink
-// support.
+// support, table buffering, and table wire style.
 package mdf

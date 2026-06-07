@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 	"unsafe"
 )
@@ -76,16 +77,23 @@ type liveParser struct {
 	listItemFirstLine         bool
 	seenLine                  bool
 	lineHasNonSpace           bool
+	tablePendingHeader        string
+	tablePendingPrefix        []TablePrefixSegment
+	tableActive               bool
+	tableAlignments           []TableAlignment
+	tableQuoteDepth           int
+	tableActivePrefix         string
 
-	inCodeFence         bool
-	fenceMarker         string
-	pendingCodeNL       bool
-	inIndentCode        bool
-	indentCode          int
-	codePrevWidth       int
-	codeLineDecided     bool
-	codeLineIsCode      bool
-	postCodeBreakSingle bool
+	inCodeFence          bool
+	fenceMarker          string
+	pendingCodeNL        bool
+	inIndentCode         bool
+	indentCode           int
+	codePrevWidth        int
+	codeLineDecided      bool
+	codeLineIsCode       bool
+	postCodeBreakSingle  bool
+	postTableBreakSingle bool
 
 	inline inlineState
 
@@ -100,6 +108,7 @@ type liveParser struct {
 	inlineLinkURLArr   [128]byte
 	inlineAutoLinkArr  [128]byte
 	inlineEntityArr    [32]byte
+	tableAlignArr      [16]TableAlignment
 }
 
 type inlineState struct {
@@ -151,6 +160,7 @@ func newLiveParser(theme Theme, osc8 bool) *liveParser {
 	p.inline.linkURL = p.inlineLinkURLArr[:0]
 	p.inline.autoLink = p.inlineAutoLinkArr[:0]
 	p.inline.entity = p.inlineEntityArr[:0]
+	p.tableAlignments = p.tableAlignArr[:0]
 	return p
 }
 
@@ -189,6 +199,12 @@ func (p *liveParser) Reset(theme Theme, osc8 bool) {
 	p.listItemFirstLine = false
 	p.seenLine = false
 	p.lineHasNonSpace = false
+	p.tablePendingHeader = ""
+	p.tablePendingPrefix = nil
+	p.tableActive = false
+	p.tableAlignments = p.tableAlignArr[:0]
+	p.tableQuoteDepth = 0
+	p.tableActivePrefix = ""
 	p.inCodeFence = false
 	p.fenceMarker = ""
 	p.pendingCodeNL = false
@@ -198,6 +214,7 @@ func (p *liveParser) Reset(theme Theme, osc8 bool) {
 	p.codeLineDecided = false
 	p.codeLineIsCode = false
 	p.postCodeBreakSingle = false
+	p.postTableBreakSingle = false
 	p.inline.codeBuf = p.inlineCodeBufArr[:0]
 	p.inline.linkText = p.inlineLinkTextArr[:0]
 	p.inline.linkURL = p.inlineLinkURLArr[:0]
@@ -287,6 +304,9 @@ func (p *liveParser) feedRune(stream Stream, r rune) error {
 	}
 	if r == '\n' {
 		if strings.TrimSpace(bytesToString(p.lineBytes)) == "" {
+			if err := p.resolvePendingTableBlankLine(stream); err != nil {
+				return err
+			}
 			if p.quoteDepth > 0 && p.quoteLazy && p.lastQuoteExplicit {
 				lineIndent, _ := leadingIndentCount(bytesToString(p.lineBytes))
 				p.pendingQuoteBlank = true
@@ -326,7 +346,16 @@ func (p *liveParser) feedRune(stream Stream, r rune) error {
 			}
 		}
 		if p.lineDecided {
-			p.hardBreakPending = hasHardLineBreak(bytesToString(p.lineBytes))
+			lineText := bytesToString(p.lineBytes)
+			p.hardBreakPending = hasHardLineBreak(lineText)
+			if p.hardBreakPending && len(p.immediateSpaces) > 0 && hasUnescapedPipe(lineText) {
+				style, kind := p.inlineStyle()
+				for _, sp := range p.immediateSpaces {
+					if err := stream.WriteToken(StreamToken{Token: Token{Text: p.runeTokenText(sp), Style: style, Kind: kind}}); err != nil {
+						return err
+					}
+				}
+			}
 			p.immediateSpaces = p.immediateSpaces[:0]
 			if err := p.flushPendingBackticks(stream); err != nil {
 				return err
@@ -376,16 +405,114 @@ func (p *liveParser) feedRune(stream Stream, r rune) error {
 		}
 		p.lineHasNonSpace = true
 		if !isPotentialBlockStart(r) {
+			if p.shouldDelayNoEdgeTablePrelude(stream) {
+				return nil
+			}
+			if p.shouldEndNoEdgeTablePreludeBeforeCurrentRune(stream, r) {
+				return p.decideLineBeforeCurrentRune(stream, r)
+			}
 			return p.maybeDecideLine(stream, false)
 		}
 		return nil
 	}
 	if r == ' ' || r == '\t' {
+		if p.shouldDelayNoEdgeTablePrelude(stream) {
+			return nil
+		}
 		return p.maybeDecideLine(stream, false)
 	}
 	if shouldAttemptDecision(p.lineBuf) {
+		if p.shouldDelayNoEdgeTablePrelude(stream) {
+			return nil
+		}
+		if p.shouldEndNoEdgeTablePreludeBeforeCurrentRune(stream, r) {
+			return p.decideLineBeforeCurrentRune(stream, r)
+		}
 		return p.maybeDecideLine(stream, false)
 	}
+	return nil
+}
+
+func (p *liveParser) shouldDelayNoEdgeTablePrelude(stream Stream) bool {
+	if _, tableCapable := stream.(TableStream); !tableCapable {
+		return false
+	}
+	line := bytesToString(p.lineBytes)
+	trimmed := strings.TrimLeft(line, " \t")
+	if len(line)-len(trimmed) >= 4 {
+		return false
+	}
+	if trimmed == "" || strings.HasPrefix(trimmed, "|") || hasUnescapedPipe(trimmed) {
+		return false
+	}
+	return isPossibleNoEdgeTableFirstCellPrefix(trimmed)
+}
+
+const maxNoEdgeTableFirstCellPreludeRunes = 64
+
+func isPossibleNoEdgeTableFirstCellPrefix(text string) bool {
+	text = strings.TrimRight(text, " \t")
+	if text == "" {
+		return false
+	}
+	if utf8.RuneCountInString(text) > maxNoEdgeTableFirstCellPreludeRunes {
+		return false
+	}
+	for _, rr := range text {
+		if unicode.IsLetter(rr) || unicode.IsDigit(rr) || rr == ' ' || rr == '\t' || rr == '-' || rr == '_' {
+			continue
+		}
+		if rr == '.' || rr == ',' || rr == '/' {
+			continue
+		}
+		return false
+	}
+	return strings.TrimSpace(text) != ""
+}
+
+func (p *liveParser) shouldEndNoEdgeTablePreludeBeforeCurrentRune(stream Stream, r rune) bool {
+	if _, tableCapable := stream.(TableStream); !tableCapable {
+		return false
+	}
+	if r == '|' || r == '\n' {
+		return false
+	}
+	line := bytesToString(p.lineBytes)
+	trimmed := strings.TrimLeft(line, " \t")
+	if len(line)-len(trimmed) >= 4 {
+		return false
+	}
+	if trimmed == "" || strings.HasPrefix(trimmed, "|") || hasUnescapedPipe(trimmed) {
+		return false
+	}
+	if len(p.lineBuf) == 0 || p.lineBuf[len(p.lineBuf)-1] != r {
+		return false
+	}
+	withoutCurrent := strings.TrimLeft(string(p.lineBuf[:len(p.lineBuf)-1]), " \t")
+	withoutCurrent = strings.TrimRight(withoutCurrent, " \t")
+	if withoutCurrent == "" || !isPossibleNoEdgeTableFirstCellPrefix(withoutCurrent) {
+		return false
+	}
+	return !isPossibleNoEdgeTableFirstCellPrefix(trimmed)
+}
+
+func (p *liveParser) decideLineBeforeCurrentRune(stream Stream, r rune) error {
+	p.lineBuf = p.lineBuf[:len(p.lineBuf)-1]
+	size := utf8.RuneLen(r)
+	if size > 0 && size <= len(p.lineBytes) {
+		p.lineBytes = p.lineBytes[:len(p.lineBytes)-size]
+	}
+	if err := p.maybeDecideLine(stream, false); err != nil {
+		return err
+	}
+	p.lineBuf = append(p.lineBuf, r)
+	p.lineBytes = utf8.AppendRune(p.lineBytes, r)
+	if p.lineDecided && !p.lineIgnoreRest {
+		if err := p.emitInline(stream, r); err != nil {
+			return err
+		}
+	}
+	p.lineEmitIdx = len(p.lineBuf)
 	return nil
 }
 
@@ -413,9 +540,165 @@ func (p *liveParser) replayLine(stream Stream, line string) error {
 	return nil
 }
 
+func (p *liveParser) consumeTableSyntaxLine() {
+	p.lineDecided = true
+	p.lineEmitIdx = len(p.lineBuf)
+	p.lineIgnoreRest = true
+	p.lineSkipBreak = true
+	p.hardBreakPending = false
+	p.inParagraph = false
+	p.listLazy = false
+	p.listItemFirstLine = false
+}
+
+func (p *liveParser) startTable(stream Stream, table TableStart) error {
+	tableStream, ok := stream.(TableStream)
+	if !ok {
+		return nil
+	}
+	p.tableQuoteDepth = tablePrefixQuoteDepth(table.Prefix)
+	p.tableActivePrefix = tablePrefixSegmentsText(table.Prefix)
+	return tableStream.StartTable(table)
+}
+
+func (p *liveParser) writeTableRow(stream Stream, row TableRow) error {
+	tableStream, ok := stream.(TableStream)
+	if !ok {
+		return nil
+	}
+	return tableStream.WriteTableRow(row)
+}
+
+func (p *liveParser) endTable(stream Stream) error {
+	tableStream, ok := stream.(TableStream)
+	if !ok {
+		return nil
+	}
+	return tableStream.EndTable()
+}
+
+func (p *liveParser) resolvePendingTableBlankLine(stream Stream) error {
+	if p.tablePendingHeader != "" {
+		if err := p.emitPendingTableHeaderAsParagraph(stream); err != nil {
+			return err
+		}
+	}
+	if p.tableActive {
+		if err := p.endTable(stream); err != nil {
+			return err
+		}
+		p.tableActive = false
+		p.tableAlignments = p.tableAlignments[:0]
+		p.tableQuoteDepth = 0
+		p.tableActivePrefix = ""
+		p.postTableBreakSingle = true
+	}
+	return nil
+}
+
+func (p *liveParser) emitTableRow(stream Stream, cells []string, header bool) error {
+	row := TableRow{
+		Cells:  make([]TableCell, 0, len(cells)),
+		Header: header,
+	}
+	for _, cell := range cells {
+		tokens := p.parseTableCellInline(strings.TrimSpace(cell))
+		row.Cells = append(row.Cells, TableCell{
+			Text:   tableCellTokenText(tokens),
+			Tokens: tokens,
+		})
+	}
+	if err := p.writeTableRow(stream, row); err != nil {
+		return err
+	}
+	p.consumeTableSyntaxLine()
+	return nil
+}
+
+func (p *liveParser) parseTableCellInline(text string) []StreamToken {
+	if text == "" {
+		return nil
+	}
+	cellParser := newLiveParser(NewTheme("table-cell", p.styles), p.osc8)
+	cellParser.lineDecided = true
+	stream := &tokenCaptureStream{}
+	_ = cellParser.emitInlineRunes(stream, []rune(text))
+	_ = cellParser.flushPendingBackticks(stream)
+	_ = cellParser.flushPendingEntity(stream)
+	_ = cellParser.flushPendingNumUS(stream)
+	cellParser.flushPendingDelims()
+	if cellParser.inline.inLink {
+		_ = stream.WriteToken(StreamToken{Token: Token{Text: "[", Style: cellParser.styles.Text}})
+		_ = stream.WriteToken(StreamToken{Token: Token{Text: cellParser.bytesTokenText(cellParser.inline.linkText), Style: cellParser.styles.Text}})
+		if cellParser.inline.inLinkURL && len(cellParser.inline.linkURL) > 0 {
+			_ = stream.WriteToken(StreamToken{Token: Token{Text: "](", Style: cellParser.styles.Text}})
+			_ = stream.WriteToken(StreamToken{Token: Token{Text: cellParser.bytesTokenText(cellParser.inline.linkURL), Style: cellParser.styles.Text}})
+			_ = stream.WriteToken(StreamToken{Token: Token{Text: ")", Style: cellParser.styles.Text}})
+		} else {
+			_ = stream.WriteToken(StreamToken{Token: Token{Text: "]", Style: cellParser.styles.Text}})
+		}
+	}
+	if cellParser.inline.inAutoLink {
+		_ = cellParser.emitStyledText(stream, "<"+cellParser.bytesTokenText(cellParser.inline.autoLink)+">")
+	}
+	return stream.tokens
+}
+
+func tableCellTokenText(tokens []StreamToken) string {
+	var b strings.Builder
+	for _, tok := range tokens {
+		b.WriteString(tok.Text)
+	}
+	return b.String()
+}
+
+type tokenCaptureStream struct {
+	tokens []StreamToken
+}
+
+func (s *tokenCaptureStream) WriteToken(tok StreamToken) error {
+	s.tokens = append(s.tokens, tok)
+	return nil
+}
+
+func (s *tokenCaptureStream) StartTable(TableStart) error  { return nil }
+func (s *tokenCaptureStream) WriteTableRow(TableRow) error { return nil }
+func (s *tokenCaptureStream) EndTable() error              { return nil }
+func (s *tokenCaptureStream) Flush() error                 { return nil }
+func (s *tokenCaptureStream) Width() int                   { return 0 }
+func (s *tokenCaptureStream) SetWidth(int)                 {}
+func (s *tokenCaptureStream) SetWrapIndent(string)         {}
+
+func (p *liveParser) emitPendingTableHeaderAsParagraph(stream Stream) error {
+	header := p.tablePendingHeader
+	prefix := p.tablePendingPrefix
+	p.tablePendingHeader = ""
+	p.tablePendingPrefix = nil
+	if header == "" {
+		return nil
+	}
+	mode := p.softBreakMode(0)
+	breakCreatesLine := p.pendingBreaks > 0 && (p.pendingBreaks >= 2 || p.hardBreakPending || mode != breakSpace)
+	emitPrefix := len(prefix) > 0 && (p.pendingBreaks == 0 || breakCreatesLine)
+	if err := p.applyPendingBreak(stream, mode); err != nil {
+		return err
+	}
+	if emitPrefix {
+		for _, segment := range prefix {
+			if err := stream.WriteToken(StreamToken{Token: Token{Text: segment.Text, Style: segment.Style, Kind: tokenText}}); err != nil {
+				return err
+			}
+		}
+	}
+	p.resetInline()
+	p.inParagraph = true
+	p.pendingBreaks = 1
+	return p.emitInlineRunes(stream, []rune(header))
+}
+
 func isPotentialBlockStart(r rune) bool {
 	switch r {
-	case '#', '-', '+', '*', '`', '~', '>':
+	case '#', '-', '+', '*', '`', '~', '>', '|':
 		return true
 	default:
 		return r >= '0' && r <= '9'
@@ -430,7 +713,24 @@ func shouldAttemptDecision(line []rune) bool {
 	if last == ' ' || last == '\t' {
 		return true
 	}
+	if last == '`' || last == '~' {
+		return !isMaybeFence(string(line))
+	}
 	return !isPotentialBlockStart(last)
+}
+
+func isPotentialTablePrelude(line string) bool {
+	trimmed := strings.TrimLeft(line, " \t")
+	if trimmed == "" {
+		return false
+	}
+	if _, ok := parseTableRow(trimmed); ok {
+		return true
+	}
+	if strings.HasPrefix(trimmed, "|") {
+		return true
+	}
+	return false
 }
 
 func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
@@ -443,6 +743,11 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		return nil
 	}
 	if strings.TrimSpace(line) == "" {
+		if force {
+			if err := p.resolvePendingTableBlankLine(stream); err != nil {
+				return err
+			}
+		}
 		if force && p.quoteDepth > 0 && p.quoteLazy && p.lastQuoteExplicit {
 			if p.pendingBreaks == 0 {
 				p.pendingBreaks = 1
@@ -544,7 +849,101 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 	if trimmed == "" {
 		return nil
 	}
-	if trimmed[0] == '`' || trimmed[0] == '~' {
+	indent, _ := leadingIndentCount(rest)
+	indentForList := indent
+	if explicit && depth > 0 && lineIndent > 0 {
+		indentForList = lineIndent
+	}
+	if _, tableCapable := stream.(TableStream); p.tableActive && tableCapable {
+		if !force {
+			return nil
+		}
+		physicalDepth := depth
+		if !explicit {
+			physicalDepth = 0
+		}
+		currentPrefix := p.tablePrefixForLine(physicalDepth, indentForList, trimmed, explicit, lineIndent)
+		if tablePrefixSegmentsText(currentPrefix) != p.tableActivePrefix {
+			if err := p.endTable(stream); err != nil {
+				return err
+			}
+			p.tableActive = false
+			p.tableAlignments = p.tableAlignments[:0]
+			p.tableQuoteDepth = 0
+			p.tableActivePrefix = ""
+			p.inParagraph = false
+		} else if cells, ok := parseTableRow(rest); ok {
+			return p.emitTableRow(stream, cells, false)
+		} else {
+			if err := p.endTable(stream); err != nil {
+				return err
+			}
+			p.tableActive = false
+			p.tableAlignments = p.tableAlignments[:0]
+			p.tableQuoteDepth = 0
+			p.tableActivePrefix = ""
+			p.inParagraph = false
+		}
+	}
+	if _, tableCapable := stream.(TableStream); p.tablePendingHeader != "" && tableCapable {
+		if !force {
+			return nil
+		}
+		physicalDepth := depth
+		if !explicit {
+			physicalDepth = 0
+		}
+		currentPrefix := p.tablePrefixForLine(physicalDepth, indentForList, trimmed, explicit, lineIndent)
+		if tablePrefixSegmentsText(p.tablePendingPrefix) != tablePrefixSegmentsText(currentPrefix) {
+			if err := p.emitPendingTableHeaderAsParagraph(stream); err != nil {
+				return err
+			}
+		}
+	}
+	if _, tableCapable := stream.(TableStream); p.tablePendingHeader != "" && tableCapable {
+		headerCells, _ := parseTableRow(p.tablePendingHeader)
+		if alignments, ok := parseTableDelimiter(rest, len(headerCells)); ok {
+			if err := p.applyPendingBreak(stream, breakDouble); err != nil {
+				return err
+			}
+			p.tableAlignments = p.tableAlignments[:0]
+			p.tableAlignments = append(p.tableAlignments, alignments...)
+			if err := p.startTable(stream, p.tableStart(p.tablePendingPrefix)); err != nil {
+				return err
+			}
+			p.tableActive = true
+			if err := p.emitTableRow(stream, headerCells, true); err != nil {
+				return err
+			}
+			p.tablePendingHeader = ""
+			p.tablePendingPrefix = nil
+			p.consumeTableSyntaxLine()
+			return nil
+		}
+		if cells, ok := parseTableRow(rest); ok {
+			if err := p.applyPendingBreak(stream, breakDouble); err != nil {
+				return err
+			}
+			p.tableAlignments = p.tableAlignments[:0]
+			if err := p.startTable(stream, p.tableStart(p.tablePendingPrefix)); err != nil {
+				return err
+			}
+			p.tableActive = true
+			if err := p.emitTableRow(stream, headerCells, false); err != nil {
+				return err
+			}
+			if err := p.emitTableRow(stream, cells, false); err != nil {
+				return err
+			}
+			p.tablePendingHeader = ""
+			p.tablePendingPrefix = nil
+			return nil
+		}
+		if err := p.emitPendingTableHeaderAsParagraph(stream); err != nil {
+			return err
+		}
+	}
+	if isPotentialFenceLine(rest) {
 		if !force {
 			return nil
 		}
@@ -698,7 +1097,6 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		p.lineEmitIdx = len(p.lineBuf) - utf8.RuneCountInString(content)
 		return p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:])
 	}
-	indent, _ := leadingIndentCount(rest)
 	codeIndent := 4
 	if len(p.listStack) > 0 {
 		state := p.listStack[len(p.listStack)-1]
@@ -718,9 +1116,16 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 			return nil
 		}
 	}
-	indentForList := indent
-	if explicit && depth > 0 && lineIndent > 0 {
-		indentForList = lineIndent
+	if _, tableCapable := stream.(TableStream); tableCapable {
+		if _, ok := parseTableRow(rest); ok {
+			if !force {
+				return nil
+			}
+			p.tablePendingHeader = strings.Clone(rest)
+			p.tablePendingPrefix = p.tablePrefixForLine(depth, indentForList, trimmed, explicit, lineIndent)
+			p.consumeTableSyntaxLine()
+			return nil
+		}
 	}
 	quoteLineWithIndent := lineIndent > 0 && strings.HasPrefix(strings.TrimLeft(line, " \t"), ">")
 	if p.inListContinuation(indentForList, trimmed, explicit, lineIndent) {
@@ -839,6 +1244,9 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		outdentIndent = lineIndent
 	}
 	p.clearListIfOutdented(outdentIndent)
+	if _, tableCapable := stream.(TableStream); !force && tableCapable && isPotentialTablePrelude(rest) {
+		return nil
+	}
 	return p.decideParagraph(stream, depth, rest, quoteBlockStart)
 }
 
@@ -1004,7 +1412,7 @@ func (p *liveParser) emitInlineRunes(stream Stream, runes []rune) error {
 		text := bytesToString(p.inline.entity)
 		p.inline.inEntity = false
 		p.inline.entity = p.inline.entity[:0]
-		if err := p.emitStyledText(stream, text); err != nil {
+		if err := p.emitEntityText(stream, text); err != nil {
 			return err
 		}
 	}
@@ -1061,8 +1469,23 @@ func decodeEntity(buf []byte) (rune, bool) {
 		}
 		return rune(val), true
 	}
-	if bytes.EqualFold(body, []byte("nbsp")) {
+	if bytes.Equal(body, []byte("nbsp")) {
 		return '\u00A0', true
+	}
+	if bytes.Equal(body, []byte("amp")) {
+		return '&', true
+	}
+	if bytes.Equal(body, []byte("lt")) {
+		return '<', true
+	}
+	if bytes.Equal(body, []byte("gt")) {
+		return '>', true
+	}
+	if bytes.Equal(body, []byte("quot")) {
+		return '"', true
+	}
+	if bytes.Equal(body, []byte("apos")) {
+		return '\'', true
 	}
 	return 0, false
 }
@@ -1160,6 +1583,78 @@ func (p *liveParser) emitListPrefix(stream Stream, listPrefixLen int) error {
 		return nil
 	}
 	return stream.WriteToken(StreamToken{Token: Token{Text: p.spaces(listPrefixLen), Style: p.styles.Text}})
+}
+
+func (p *liveParser) tableStart(prefix []TablePrefixSegment) TableStart {
+	alignments := append([]TableAlignment(nil), p.tableAlignments...)
+	return TableStart{
+		Alignments:  alignments,
+		HeaderStyle: p.styles.TableHeader,
+		WireStyle:   p.styles.TableWire,
+		Prefix:      prefix,
+	}
+}
+
+func tablePrefixQuoteDepth(prefix []TablePrefixSegment) int {
+	depth := 0
+	for _, segment := range prefix {
+		if segment.Text == ">" {
+			depth++
+		}
+	}
+	return depth
+}
+
+func (p *liveParser) tablePrefixForLine(quoteDepth int, indentForList int, trimmed string, explicitQuote bool, lineIndent int) []TablePrefixSegment {
+	listPrefixLen := p.listPrefixLen
+	if len(p.listStack) > 0 {
+		if p.inListContinuation(indentForList, trimmed, explicitQuote, lineIndent) {
+			listPrefixLen += p.listStack[len(p.listStack)-1].itemIndentExtra
+		} else {
+			listPrefixLen = 0
+			p.clearListIfOutdented(indentForList)
+		}
+	}
+	return p.tablePrefix(quoteDepth, listPrefixLen)
+}
+
+func tablePrefixSegmentsText(prefix []TablePrefixSegment) string {
+	if len(prefix) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, segment := range prefix {
+		b.WriteString(segment.Text)
+	}
+	return b.String()
+}
+
+func (p *liveParser) tablePrefix(quoteDepth int, listPrefixLen int) []TablePrefixSegment {
+	if quoteDepth == 0 && listPrefixLen == 0 {
+		return nil
+	}
+	var prefix []TablePrefixSegment
+	appendQuote := func() {
+		for i := 0; i < quoteDepth; i++ {
+			prefix = append(prefix,
+				TablePrefixSegment{Text: ">", Style: p.styles.Quote},
+				TablePrefixSegment{Text: " ", Style: p.styles.Text},
+			)
+		}
+	}
+	appendList := func() {
+		if listPrefixLen > 0 {
+			prefix = append(prefix, TablePrefixSegment{Text: p.spaces(listPrefixLen), Style: p.styles.Text})
+		}
+	}
+	if p.quoteListPrefixFirst && quoteDepth > 0 && listPrefixLen > 0 {
+		appendList()
+		appendQuote()
+	} else {
+		appendQuote()
+		appendList()
+	}
+	return prefix
 }
 
 func (p *liveParser) processCodeFenceLine(stream Stream, line string) error {
@@ -1475,6 +1970,11 @@ func isMaybeFence(text string) bool {
 	return true
 }
 
+func isPotentialFenceLine(text string) bool {
+	trim := strings.TrimSpace(text)
+	return strings.HasPrefix(trim, "```") || strings.HasPrefix(trim, "~~~") || isMaybeFence(text)
+}
+
 func isThematicBreak(text string) bool {
 	trim := strings.TrimSpace(text)
 	if len(trim) < 3 {
@@ -1709,18 +2209,18 @@ func (p *liveParser) emitInline(stream Stream, r rune) error {
 			if ent, ok := decodeEntity(p.inline.entity); ok {
 				p.inline.inEntity = false
 				p.inline.entity = p.inline.entity[:0]
-				return p.emitStyledText(stream, p.runeTokenText(ent))
+				return p.emitEntityRune(stream, ent)
 			}
 			text := bytesToString(p.inline.entity)
 			p.inline.inEntity = false
 			p.inline.entity = p.inline.entity[:0]
-			return p.emitStyledText(stream, text)
+			return p.emitEntityText(stream, text)
 		}
-		if r == ' ' || r == '\t' || r == '\n' || len(p.inline.entity) >= maxEntityLen {
+		if r == ' ' || r == '\t' || r == '\n' || (p.inline.inLink && !p.inline.inLinkURL && (r == ']' || r == '[' || r == '(' || r == ')' || r == '<')) || len(p.inline.entity) >= maxEntityLen {
 			text := bytesToString(p.inline.entity)
 			p.inline.inEntity = false
 			p.inline.entity = p.inline.entity[:0]
-			if err := p.emitStyledText(stream, text); err != nil {
+			if err := p.emitEntityText(stream, text); err != nil {
 				return err
 			}
 			// fall through to handle the current rune normally
@@ -1926,6 +2426,33 @@ func (p *liveParser) emitStyledTextWithNBSP(stream Stream, text string, style St
 	return nil
 }
 
+func (p *liveParser) emitDecodedEntity(stream Stream, r rune) error {
+	style, kind := p.inlineStyle()
+	if kind == tokenText {
+		kind = tokenDecodedEntity
+	}
+	return stream.WriteToken(StreamToken{Token: Token{Text: p.runeTokenText(r), Style: style, Kind: kind}})
+}
+
+func (p *liveParser) emitEntityText(stream Stream, text string) error {
+	if text == "" {
+		return nil
+	}
+	if p.inline.inLink && !p.inline.inLinkURL {
+		p.inline.linkText = append(p.inline.linkText, text...)
+		return nil
+	}
+	return p.emitStyledText(stream, text)
+}
+
+func (p *liveParser) emitEntityRune(stream Stream, r rune) error {
+	if p.inline.inLink && !p.inline.inLinkURL {
+		p.inline.linkText = utf8.AppendRune(p.inline.linkText, r)
+		return nil
+	}
+	return p.emitDecodedEntity(stream, r)
+}
+
 func (p *liveParser) emitAutoLink(stream Stream, text string) error {
 	if text == "" {
 		return p.emitStyledText(stream, "<>")
@@ -2031,28 +2558,48 @@ func (p *liveParser) emitInlineBackticks(stream Stream, count int) error {
 	return nil
 }
 
-func (p *liveParser) finalize(stream Stream) {
+func (p *liveParser) finalize(stream Stream) error {
 	if len(p.lineBuf) > 0 {
 		if p.lineDecided {
-			_ = p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:])
-			_ = p.flushPendingBackticks(stream)
-			_ = p.flushPendingEntity(stream)
-			_ = p.flushPendingNumUS(stream)
+			if err := p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:]); err != nil {
+				return err
+			}
+			if err := p.flushPendingBackticks(stream); err != nil {
+				return err
+			}
+			if err := p.flushPendingEntity(stream); err != nil {
+				return err
+			}
+			if err := p.flushPendingNumUS(stream); err != nil {
+				return err
+			}
 			p.flushPendingDelims()
 			p.lineStyled = false
 		} else {
 			if p.inIndentCode {
-				_ = p.maybeDecideIndentCodeLine(stream, true)
+				if err := p.maybeDecideIndentCodeLine(stream, true); err != nil {
+					return err
+				}
 				if p.codeLineDecided && p.codeLineIsCode {
 					p.resetLine()
 				}
 			} else {
-				_ = p.maybeDecideLine(stream, true)
+				if err := p.maybeDecideLine(stream, true); err != nil {
+					return err
+				}
 				if p.lineDecided && p.lineEmitIdx < len(p.lineBuf) {
-					_ = p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:])
-					_ = p.flushPendingBackticks(stream)
-					_ = p.flushPendingEntity(stream)
-					_ = p.flushPendingNumUS(stream)
+					if err := p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:]); err != nil {
+						return err
+					}
+					if err := p.flushPendingBackticks(stream); err != nil {
+						return err
+					}
+					if err := p.flushPendingEntity(stream); err != nil {
+						return err
+					}
+					if err := p.flushPendingNumUS(stream); err != nil {
+						return err
+					}
 					p.flushPendingDelims()
 					p.lineStyled = false
 				}
@@ -2070,15 +2617,41 @@ func (p *liveParser) finalize(stream Stream) {
 		p.inIndentCode = false
 		p.exitCodeNoWrap(stream)
 	}
+	if p.tablePendingHeader != "" {
+		if err := p.emitPendingTableHeaderAsParagraph(stream); err != nil {
+			return err
+		}
+	}
+	if p.tableActive {
+		if err := p.endTable(stream); err != nil {
+			return err
+		}
+		p.tableActive = false
+		p.tableAlignments = p.tableAlignments[:0]
+		p.tableQuoteDepth = 0
+		p.tableActivePrefix = ""
+	}
 	if p.inline.inLink {
-		_ = stream.WriteToken(StreamToken{Token: Token{Text: "[", Style: p.styles.Text}})
-		_ = stream.WriteToken(StreamToken{Token: Token{Text: p.bytesTokenText(p.inline.linkText), Style: p.styles.Text}})
+		if err := stream.WriteToken(StreamToken{Token: Token{Text: "[", Style: p.styles.Text}}); err != nil {
+			return err
+		}
+		if err := stream.WriteToken(StreamToken{Token: Token{Text: p.bytesTokenText(p.inline.linkText), Style: p.styles.Text}}); err != nil {
+			return err
+		}
 		if p.inline.inLinkURL && len(p.inline.linkURL) > 0 {
-			_ = stream.WriteToken(StreamToken{Token: Token{Text: "](", Style: p.styles.Text}})
-			_ = stream.WriteToken(StreamToken{Token: Token{Text: p.bytesTokenText(p.inline.linkURL), Style: p.styles.Text}})
-			_ = stream.WriteToken(StreamToken{Token: Token{Text: ")", Style: p.styles.Text}})
+			if err := stream.WriteToken(StreamToken{Token: Token{Text: "](", Style: p.styles.Text}}); err != nil {
+				return err
+			}
+			if err := stream.WriteToken(StreamToken{Token: Token{Text: p.bytesTokenText(p.inline.linkURL), Style: p.styles.Text}}); err != nil {
+				return err
+			}
+			if err := stream.WriteToken(StreamToken{Token: Token{Text: ")", Style: p.styles.Text}}); err != nil {
+				return err
+			}
 		} else {
-			_ = stream.WriteToken(StreamToken{Token: Token{Text: "]", Style: p.styles.Text}})
+			if err := stream.WriteToken(StreamToken{Token: Token{Text: "]", Style: p.styles.Text}}); err != nil {
+				return err
+			}
 		}
 		p.inline.inLink = false
 		p.inline.inLinkURL = false
@@ -2092,8 +2665,11 @@ func (p *liveParser) finalize(stream Stream) {
 		text := bytesToString(p.textArena[start:len(p.textArena)])
 		p.inline.inAutoLink = false
 		p.inline.autoLink = p.inline.autoLink[:0]
-		_ = p.emitStyledText(stream, text)
+		if err := p.emitStyledText(stream, text); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (p *liveParser) flushPendingBackticks(stream Stream) error {
@@ -2310,21 +2886,27 @@ func (p *liveParser) applyPendingBreak(stream Stream, mode breakMode) error {
 	if p.postCodeBreakSingle && mode == breakDouble {
 		mode = breakSingle
 	}
+	if p.postTableBreakSingle && mode == breakDouble {
+		mode = breakSingle
+	}
 	switch mode {
 	case breakDouble:
 		p.pendingBreaks = 0
 		p.hardBreakPending = false
 		p.postCodeBreakSingle = false
+		p.postTableBreakSingle = false
 		return stream.WriteToken(StreamToken{Token: Token{Text: "\n\n", Style: Style{}, Kind: tokenText}})
 	case breakSingle:
 		p.pendingBreaks = 0
 		p.hardBreakPending = false
 		p.postCodeBreakSingle = false
+		p.postTableBreakSingle = false
 		return stream.WriteToken(StreamToken{Token: Token{Text: "\n", Style: Style{}, Kind: tokenText}})
 	default:
 		p.pendingBreaks = 0
 		p.hardBreakPending = false
 		p.postCodeBreakSingle = false
+		p.postTableBreakSingle = false
 		style, kind := p.inlineStyle()
 		return stream.WriteToken(StreamToken{Token: Token{Text: " ", Style: style, Kind: kind}})
 	}

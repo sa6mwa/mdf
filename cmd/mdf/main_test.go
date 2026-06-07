@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"pkt.systems/mdf"
 )
 
 func TestOpenInputFileAndURL(t *testing.T) {
@@ -62,10 +64,11 @@ func TestOpenInputFileAndURL(t *testing.T) {
 func TestRenderHTML(t *testing.T) {
 	var out bytes.Buffer
 	err := renderHTML(strings.NewReader("# Title\n\nBody\n"), &out, nil, false, pdfConfig{
-		margin:     24,
-		fontSize:   10,
-		lineHeight: 1.2,
-		h1Scale:    2,
+		margin:           24,
+		htmlContentWidth: 72,
+		fontSize:         10,
+		lineHeight:       1.2,
+		h1Scale:          2,
 	})
 	if err != nil {
 		t.Fatalf("render html: %v", err)
@@ -73,7 +76,9 @@ func TestRenderHTML(t *testing.T) {
 	rendered := out.String()
 	wants := []string{
 		"<!doctype html>",
-		"padding:24pt;",
+		"--mdf-page-padding-block:24pt;",
+		"--mdf-page-padding-inline:24pt;",
+		"--mdf-content-max-width:72ch;",
 		"font-size:10pt;",
 		"line-height:1.2;",
 		"Body",
@@ -126,6 +131,68 @@ func TestResolveOSC8(t *testing.T) {
 	}
 	if _, err := resolveOSC8("nope"); err == nil {
 		t.Fatalf("expected error for invalid osc8 value")
+	}
+}
+
+func TestResolveTableBufferMode(t *testing.T) {
+	cases := map[string]mdf.TableBufferMode{
+		"":     mdf.TableBufferFull,
+		"full": mdf.TableBufferFull,
+		"row":  mdf.TableBufferRow,
+	}
+	for input, want := range cases {
+		got, err := resolveTableBufferMode(input)
+		if err != nil {
+			t.Fatalf("resolveTableBufferMode(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("resolveTableBufferMode(%q)=%v want %v", input, got, want)
+		}
+	}
+	if _, err := resolveTableBufferMode("stream"); err == nil {
+		t.Fatalf("expected error for invalid table buffer mode")
+	}
+}
+
+func TestResolveTableWireMode(t *testing.T) {
+	cases := map[string]mdf.TableWireMode{
+		"":      mdf.TableWireLine,
+		"line":  mdf.TableWireLine,
+		"ascii": mdf.TableWireASCII,
+		"space": mdf.TableWireSpace,
+	}
+	for input, want := range cases {
+		got, err := resolveTableWireMode(input)
+		if err != nil {
+			t.Fatalf("resolveTableWireMode(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("resolveTableWireMode(%q)=%v want %v", input, got, want)
+		}
+	}
+	if _, err := resolveTableWireMode("unicode"); err == nil {
+		t.Fatalf("expected error for invalid table wire mode")
+	}
+}
+
+func TestValidateTableWireForModeRejectsHTMLASCII(t *testing.T) {
+	err := validateTableWireForMode(true, mdf.TableWireASCII)
+	if err == nil {
+		t.Fatalf("expected html ascii table wire mode to be rejected")
+	}
+	if !strings.Contains(err.Error(), "--table-wire ascii is not supported with --html") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateTableWireForModeAllowsHTMLLineAndSpace(t *testing.T) {
+	for _, mode := range []mdf.TableWireMode{mdf.TableWireLine, mdf.TableWireSpace} {
+		if err := validateTableWireForMode(true, mode); err != nil {
+			t.Fatalf("expected html table wire mode %v to be allowed: %v", mode, err)
+		}
+	}
+	if err := validateTableWireForMode(false, mdf.TableWireASCII); err != nil {
+		t.Fatalf("expected ansi ascii table wire mode to be allowed: %v", err)
 	}
 }
 

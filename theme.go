@@ -26,6 +26,8 @@ type Styles struct {
 	LinkText       Style
 	LinkURL        Style
 	ThematicBreak  Style
+	TableHeader    Style
+	TableWire      Style
 }
 
 // Theme provides named styles for Markdown rendering.
@@ -58,6 +60,10 @@ func style(prefixes ...string) Style {
 }
 
 func stylesFromPalette(p palette.Palette) Styles {
+	tableHeader := p.TableHeader
+	if tableHeader == "" {
+		tableHeader = p.H5
+	}
 	return Styles{
 		Text:           style(p.Text),
 		Heading:        [6]Style{style(p.H1), style(p.H2), style(p.H3), style(p.H4), style(p.H5), style(p.H6)},
@@ -71,6 +77,8 @@ func stylesFromPalette(p palette.Palette) Styles {
 		LinkText:       style(palette.Underline, p.LinkText),
 		LinkURL:        style(p.LinkURL),
 		ThematicBreak:  style(p.ThematicBreak),
+		TableHeader:    style(palette.Bold, tableHeader),
+		TableWire:      style(palette.Faint),
 	}
 }
 

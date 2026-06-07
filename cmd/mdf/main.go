@@ -43,7 +43,10 @@ func main() {
 		outPath           string
 		boring            bool
 		htmlMode          bool
+		htmlContentWidth  float64
 		pdfMode           bool
+		tableBufferFlag   string
+		tableWireFlag     string
 		pdfPageSize       string
 		pdfMargin         float64
 		pdfLineHeight     float64
@@ -64,6 +67,7 @@ func main() {
 	)
 
 	pdfDefaults := pdf.DefaultConfig()
+	htmlDefaults := mdfhtml.DefaultConfig()
 	flags := pflag.NewFlagSet("mdf", pflag.ExitOnError)
 	flags.BoolVar(&simulate, "simulate", false, "Stream simulator (use default delay and chunk size)")
 	flags.IntVar(&simChunkSize, "simulate-chunk", defaultChunkSize, "Max bytes per stream chunk")
@@ -75,7 +79,10 @@ func main() {
 	flags.StringVarP(&outPath, "output", "o", "", "Output file instead of stdout")
 	flags.BoolVarP(&boring, "boring", "b", false, "Generate non-ANSI output or boring PDF")
 	flags.BoolVar(&htmlMode, "html", false, "Generate self-contained HTML instead of ANSI output")
+	flags.Float64Var(&htmlContentWidth, "html-content-width", htmlDefaults.ContentMaxWidthCh, "HTML content max width in ch")
 	flags.BoolVar(&pdfMode, "pdf", false, "Generate a PDF instead of ANSI output")
+	flags.StringVar(&tableBufferFlag, "table-buffer", "full", "Table buffering mode: full|row")
+	flags.StringVar(&tableWireFlag, "table-wire", "line", "Table wire mode: line|ascii|space")
 	flags.StringVar(&pdfBoldFont, "pdf-bold-font", "", "TTF path for bold font")
 	flags.StringVar(&pdfItalicFont, "pdf-italic-font", "", "TTF path for italic font")
 	flags.StringVar(&pdfRegularFont, "pdf-regular-font", "", "TTF path for regular font")
@@ -154,6 +161,20 @@ func main() {
 		printThemes()
 		os.Exit(2)
 	}
+	tableBufferMode, err := resolveTableBufferMode(tableBufferFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid --table-buffer %q: %v\n", tableBufferFlag, err)
+		os.Exit(2)
+	}
+	tableWireMode, err := resolveTableWireMode(tableWireFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid --table-wire %q: %v\n", tableWireFlag, err)
+		os.Exit(2)
+	}
+	if err := validateTableWireForMode(htmlMode, tableWireMode); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
 	if pdfMode {
 		if isTerminal(writer) {
@@ -161,23 +182,25 @@ func main() {
 			os.Exit(2)
 		}
 		if err := renderPDF(reader, writer, theme, boring, pdfConfig{
-			pageSize:       pdfPageSize,
-			margin:         pdfMargin,
-			lineHeight:     pdfLineHeight,
-			fontSize:       pdfFontSize,
-			h1Scale:        pdfH1Scale,
-			h2Scale:        pdfH2Scale,
-			h3Scale:        pdfH3Scale,
-			printViewSplit: pdfPrintViewSplit,
-			regularFont:    pdfRegularFont,
-			boldFont:       pdfBoldFont,
-			italicFont:     pdfItalicFont,
-			boldItalicFont: pdfBoldItalicFont,
-			headingFont:    pdfHeadingFont,
-			cornerImage:    pdfCornerImage,
-			cornerMaxW:     pdfCornerMaxW,
-			cornerMaxH:     pdfCornerMaxH,
-			cornerPadding:  pdfCornerPadding,
+			pageSize:        pdfPageSize,
+			margin:          pdfMargin,
+			lineHeight:      pdfLineHeight,
+			fontSize:        pdfFontSize,
+			h1Scale:         pdfH1Scale,
+			h2Scale:         pdfH2Scale,
+			h3Scale:         pdfH3Scale,
+			printViewSplit:  pdfPrintViewSplit,
+			regularFont:     pdfRegularFont,
+			boldFont:        pdfBoldFont,
+			italicFont:      pdfItalicFont,
+			boldItalicFont:  pdfBoldItalicFont,
+			headingFont:     pdfHeadingFont,
+			cornerImage:     pdfCornerImage,
+			cornerMaxW:      pdfCornerMaxW,
+			cornerMaxH:      pdfCornerMaxH,
+			cornerPadding:   pdfCornerPadding,
+			tableBufferMode: tableBufferMode,
+			tableWireMode:   tableWireMode,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "render pdf: %v\n", err)
 			os.Exit(1)
@@ -187,21 +210,24 @@ func main() {
 
 	if htmlMode {
 		if err := renderHTML(reader, writer, theme, boring, pdfConfig{
-			margin:         pdfMargin,
-			lineHeight:     pdfLineHeight,
-			fontSize:       pdfFontSize,
-			h1Scale:        pdfH1Scale,
-			h2Scale:        pdfH2Scale,
-			h3Scale:        pdfH3Scale,
-			regularFont:    pdfRegularFont,
-			boldFont:       pdfBoldFont,
-			italicFont:     pdfItalicFont,
-			boldItalicFont: pdfBoldItalicFont,
-			headingFont:    pdfHeadingFont,
-			cornerImage:    pdfCornerImage,
-			cornerMaxW:     pdfCornerMaxW,
-			cornerMaxH:     pdfCornerMaxH,
-			cornerPadding:  pdfCornerPadding,
+			margin:           pdfMargin,
+			lineHeight:       pdfLineHeight,
+			fontSize:         pdfFontSize,
+			h1Scale:          pdfH1Scale,
+			h2Scale:          pdfH2Scale,
+			h3Scale:          pdfH3Scale,
+			regularFont:      pdfRegularFont,
+			boldFont:         pdfBoldFont,
+			italicFont:       pdfItalicFont,
+			boldItalicFont:   pdfBoldItalicFont,
+			headingFont:      pdfHeadingFont,
+			cornerImage:      pdfCornerImage,
+			cornerMaxW:       pdfCornerMaxW,
+			cornerMaxH:       pdfCornerMaxH,
+			cornerPadding:    pdfCornerPadding,
+			tableBufferMode:  tableBufferMode,
+			tableWireMode:    tableWireMode,
+			htmlContentWidth: htmlContentWidth,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "render html: %v\n", err)
 			os.Exit(1)
@@ -223,7 +249,7 @@ func main() {
 		Writer:  writer,
 		Width:   width,
 		Theme:   theme,
-		Options: []mdf.RenderOption{mdf.WithOSC8(osc8)},
+		Options: []mdf.RenderOption{mdf.WithOSC8(osc8), mdf.WithTableBufferMode(tableBufferMode), mdf.WithTableWireMode(tableWireMode)},
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "render: %v\n", err)
 		os.Exit(1)
@@ -231,23 +257,26 @@ func main() {
 }
 
 type pdfConfig struct {
-	pageSize       string
-	margin         float64
-	lineHeight     float64
-	fontSize       float64
-	h1Scale        float64
-	h2Scale        float64
-	h3Scale        float64
-	printViewSplit bool
-	regularFont    string
-	boldFont       string
-	italicFont     string
-	boldItalicFont string
-	headingFont    string
-	cornerImage    string
-	cornerMaxW     float64
-	cornerMaxH     float64
-	cornerPadding  float64
+	pageSize         string
+	margin           float64
+	lineHeight       float64
+	fontSize         float64
+	h1Scale          float64
+	h2Scale          float64
+	h3Scale          float64
+	printViewSplit   bool
+	regularFont      string
+	boldFont         string
+	italicFont       string
+	boldItalicFont   string
+	headingFont      string
+	cornerImage      string
+	cornerMaxW       float64
+	cornerMaxH       float64
+	cornerPadding    float64
+	tableBufferMode  mdf.TableBufferMode
+	tableWireMode    mdf.TableWireMode
+	htmlContentWidth float64
 }
 
 func renderPDF(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdfConfig) error {
@@ -272,6 +301,8 @@ func renderPDF(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdf
 		cfg.HeadingScale[2] = cfgIn.h3Scale
 	}
 	cfg.UseOCGPrintView = cfgIn.printViewSplit
+	cfg.TableBufferMode = cfgIn.tableBufferMode
+	cfg.TableWireMode = cfgIn.tableWireMode
 	if cfgIn.cornerImage != "" {
 		cfg.CornerImagePath = cfgIn.cornerImage
 	}
@@ -349,6 +380,9 @@ func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pd
 	if cfgIn.lineHeight > 0 {
 		cfg.LineHeight = cfgIn.lineHeight
 	}
+	if cfgIn.htmlContentWidth > 0 {
+		cfg.ContentMaxWidthCh = cfgIn.htmlContentWidth
+	}
 	if cfgIn.fontSize > 0 {
 		cfg.FontSize = cfgIn.fontSize
 	}
@@ -374,6 +408,8 @@ func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pd
 		cfg.CornerImagePadding = cfgIn.cornerPadding
 	}
 	cfg.Boring = boring
+	cfg.TableBufferMode = cfgIn.tableBufferMode
+	cfg.TableWireMode = cfgIn.tableWireMode
 
 	reg, bold, italic := strings.TrimSpace(cfgIn.regularFont), strings.TrimSpace(cfgIn.boldFont), strings.TrimSpace(cfgIn.italicFont)
 	if reg != "" || bold != "" || italic != "" {
@@ -468,6 +504,39 @@ func resolveOSC8(mode string) (bool, error) {
 	default:
 		return false, fmt.Errorf("expected auto|on|off")
 	}
+}
+
+func resolveTableBufferMode(mode string) (mdf.TableBufferMode, error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "":
+		return mdf.TableBufferFull, nil
+	case "full":
+		return mdf.TableBufferFull, nil
+	case "row":
+		return mdf.TableBufferRow, nil
+	default:
+		return mdf.TableBufferFull, fmt.Errorf("expected full|row")
+	}
+}
+
+func resolveTableWireMode(mode string) (mdf.TableWireMode, error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "line":
+		return mdf.TableWireLine, nil
+	case "ascii":
+		return mdf.TableWireASCII, nil
+	case "space":
+		return mdf.TableWireSpace, nil
+	default:
+		return mdf.TableWireLine, fmt.Errorf("expected line|ascii|space")
+	}
+}
+
+func validateTableWireForMode(htmlMode bool, mode mdf.TableWireMode) error {
+	if htmlMode && mode == mdf.TableWireASCII {
+		return fmt.Errorf("--table-wire ascii is not supported with --html; use line or space")
+	}
+	return nil
 }
 
 func boringTheme() mdf.Theme {

@@ -21,6 +21,7 @@ const (
 	tokenURL
 	tokenCode
 	tokenThematicBreak
+	tokenDecodedEntity
 )
 
 const (

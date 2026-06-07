@@ -30,6 +30,13 @@ type stream struct {
 	lineProbe     []styledRune
 	lineOpen      bool
 	linePrefixLen int
+	tableStart    mdf.TableStart
+	tableRows     []mdf.TableRow
+	tableColumns  int
+	tableActive   bool
+	tableOpen     bool
+	tableWrapped  bool
+	tableBodyOpen bool
 }
 
 type styledRune struct {
@@ -63,6 +70,9 @@ func (s *stream) WriteToken(tok mdf.StreamToken) error {
 	case mdf.TokenLinkEnd:
 		return s.closeLink()
 	case mdf.TokenThematicBreak:
+		// HTML intentionally consumes thematic breaks as structural separators
+		// instead of emitting <hr>, matching the renderer policy tested in
+		// TestRenderIntentionallySuppressesThematicBreaks.
 		if s.headingProbe.Len() > 0 {
 			if err := s.flushHeadingProbe(s.headingStyle); err != nil {
 				return err
@@ -74,8 +84,7 @@ func (s *stream) WriteToken(tok mdf.StreamToken) error {
 		if err := s.closeSpan(); err != nil {
 			return err
 		}
-		_, err := io.WriteString(s.w, `<hr class="mdf-thematic-break">`)
-		return err
+		return nil
 	}
 	if tok.Text == "" {
 		return nil
@@ -83,9 +92,101 @@ func (s *stream) WriteToken(tok mdf.StreamToken) error {
 	return s.writeText(tok.Text, tok.Style)
 }
 
+func (s *stream) StartTable(table mdf.TableStart) error {
+	if err := s.closeInlineForBlock(); err != nil {
+		return err
+	}
+	s.tableStart = table
+	s.tableRows = s.tableRows[:0]
+	s.tableColumns = 0
+	s.tableActive = true
+	s.tableOpen = false
+	s.tableWrapped = false
+	s.tableBodyOpen = false
+	return nil
+}
+
+func (s *stream) WriteTableRow(row mdf.TableRow) error {
+	if !s.tableActive {
+		if err := s.StartTable(mdf.TableStart{}); err != nil {
+			return err
+		}
+	}
+	if s.cfg.TableBufferMode == mdf.TableBufferRow {
+		return s.writeRowBufferedTable(row)
+	}
+	s.tableRows = append(s.tableRows, row)
+	return nil
+}
+
+func (s *stream) EndTable() error {
+	if !s.tableActive {
+		return nil
+	}
+	if s.cfg.TableBufferMode == mdf.TableBufferFull || !s.tableOpen {
+		if err := s.writeFullTable(s.tableRows); err != nil {
+			return err
+		}
+	} else if s.tableBodyOpen {
+		if _, err := io.WriteString(s.w, "</tbody>"); err != nil {
+			return err
+		}
+	}
+	if s.tableOpen {
+		if _, err := io.WriteString(s.w, "</table>\n"); err != nil {
+			return err
+		}
+	}
+	if s.tableWrapped {
+		if _, err := io.WriteString(s.w, "</div>"); err != nil {
+			return err
+		}
+	}
+	s.tableRows = s.tableRows[:0]
+	s.tableColumns = 0
+	s.tableActive = false
+	s.tableOpen = false
+	s.tableWrapped = false
+	s.tableBodyOpen = false
+	s.atLineStart = true
+	return nil
+}
+
+func (s *stream) closeInlineForBlock() error {
+	if s.headingProbe.Len() > 0 {
+		if err := s.flushHeadingProbe(s.headingStyle); err != nil {
+			return err
+		}
+	}
+	if err := s.closeHeading(); err != nil {
+		return err
+	}
+	if err := s.closeSpan(); err != nil {
+		return err
+	}
+	if err := s.closeHangingLine(); err != nil {
+		return err
+	}
+	if err := s.closeLink(); err != nil {
+		return err
+	}
+	if !s.atLineStart {
+		if _, err := io.WriteString(s.w, "\n"); err != nil {
+			return err
+		}
+		s.atLineStart = true
+	}
+	return nil
+}
+
 func (s *stream) Flush() error {
 	if s.documentEnded {
 		return nil
+	}
+	if s.tableActive {
+		if err := s.EndTable(); err != nil {
+			return err
+		}
 	}
 	if s.headingProbe.Len() > 0 {
 		if err := s.flushHeadingProbe(s.headingStyle); err != nil {
@@ -152,15 +253,21 @@ func (s *stream) writeCSS(b *strings.Builder) {
 	b.WriteString("pt;line-height:")
 	b.WriteString(formatFloat(s.cfg.LineHeight))
 	b.WriteString(";}\n")
-	b.WriteString(".mdf-document{box-sizing:border-box;min-height:100vh;width:100%;padding:")
+	b.WriteString(".mdf-document{--mdf-content-max-width:")
+	b.WriteString(formatFloat(s.cfg.ContentMaxWidthCh))
+	b.WriteString("ch;--mdf-page-padding-block:")
 	b.WriteString(formatFloat(s.cfg.Margin))
-	b.WriteString("pt;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;}\n")
+	b.WriteString("pt;--mdf-page-padding-inline:")
+	b.WriteString(formatFloat(s.cfg.Margin))
+	b.WriteString("pt;box-sizing:border-box;min-height:100vh;width:min(100%,var(--mdf-content-max-width));margin-inline:auto;padding-block:var(--mdf-page-padding-block);padding-inline:clamp(1rem,4vw,var(--mdf-page-padding-inline));white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;}\n")
 	b.WriteString(".mdf-document a{color:inherit;text-decoration:none;}\n")
 	b.WriteString(".mdf-document a:hover{text-decoration:underline;}\n")
 	b.WriteString(".mdf-heading{display:inline-block;box-sizing:border-box;max-width:100%;white-space:normal;overflow-wrap:anywhere;padding-left:var(--mdf-heading-indent);text-indent:calc(-1 * var(--mdf-heading-indent));vertical-align:top;}\n")
 	b.WriteString(".mdf-line{display:inline-grid;grid-template-columns:max-content minmax(0,1fr);max-width:100%;white-space:normal;overflow-wrap:anywhere;vertical-align:top;}\n")
 	b.WriteString(".mdf-prefix{grid-column:1;white-space:pre;}\n")
 	b.WriteString(".mdf-content{grid-column:2;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;}\n")
+	b.WriteString(".mdf-table-block{display:grid;grid-template-columns:max-content max-content;column-gap:0;align-items:start;margin:1em 0;clear:both;}\n")
+	b.WriteString(".mdf-table-block .mdf-table{margin:0;}\n")
 	b.WriteString(".mdf-corner-image{float:right;max-width:")
 	b.WriteString(formatFloat(s.cfg.CornerImageMaxWidth))
 	b.WriteString("pt;max-height:")
@@ -170,9 +277,305 @@ func (s *stream) writeCSS(b *strings.Builder) {
 	b.WriteString("pt;margin-bottom:")
 	b.WriteString(formatFloat(s.cfg.CornerImagePadding))
 	b.WriteString("pt;object-fit:contain;}\n")
-	b.WriteString(".mdf-thematic-break{border:0;border-top:1px solid ")
-	b.WriteString(rgbCSS(s.cfg.TextRGB))
-	b.WriteString(";margin:1em 0;clear:both;}\n")
+	tableWire := rgbCSS(parseANSIPrefix(s.styles.TableWire.Prefix, [3]int{64, 64, 64}).color)
+	if s.cfg.IgnoreColors {
+		tableWire = rgbCSS(s.cfg.TextRGB)
+	}
+	b.WriteString(".mdf-table{--mdf-table-wire:")
+	b.WriteString(tableWire)
+	b.WriteString(";white-space:normal;border-collapse:collapse;margin:1em 0;clear:both;}\n")
+	b.WriteString(".mdf-table th,.mdf-table td{vertical-align:top;overflow-wrap:anywhere;white-space:pre-wrap;}\n")
+	b.WriteString(".mdf-table th{")
+	b.WriteString(s.styleFor(s.styles.TableHeader))
+	b.WriteString("overflow-wrap:normal;word-break:normal;}\n")
+	b.WriteString(".mdf-table-bordered th,.mdf-table-bordered td{border:1px solid var(--mdf-table-wire);padding:.2em 1ch;}\n")
+	b.WriteString(".mdf-table-space{border-collapse:collapse;border-spacing:0;}\n")
+	b.WriteString(".mdf-table-space th,.mdf-table-space td{border:0;padding:0 1ch;}\n")
+	b.WriteString(".mdf-table-space th:first-child,.mdf-table-space td:first-child{padding-left:0;}\n")
+	b.WriteString(".mdf-table-space th:last-child,.mdf-table-space td:last-child{padding-right:0;}\n")
+}
+
+func (s *stream) writeRowBufferedTable(row mdf.TableRow) error {
+	if !s.tableOpen {
+		s.tableRows = append(s.tableRows, row)
+		if len(s.tableRows) < 2 {
+			return nil
+		}
+		s.tableColumns = htmlTableColumnCount(s.tableRows, s.tableStart.Alignments)
+		if err := s.openTable(); err != nil {
+			return err
+		}
+		if s.tableRows[0].Header {
+			if _, err := io.WriteString(s.w, "<thead>"); err != nil {
+				return err
+			}
+			if err := s.writeHTMLTableRow(s.tableRows[0], s.tableColumns); err != nil {
+				return err
+			}
+			if _, err := io.WriteString(s.w, "</thead><tbody>"); err != nil {
+				return err
+			}
+			s.tableBodyOpen = true
+			if err := s.writeHTMLTableRow(s.tableRows[1], s.tableColumns); err != nil {
+				return err
+			}
+		} else {
+			if _, err := io.WriteString(s.w, "<tbody>"); err != nil {
+				return err
+			}
+			s.tableBodyOpen = true
+			for _, buffered := range s.tableRows {
+				if err := s.writeHTMLTableRow(buffered, s.tableColumns); err != nil {
+					return err
+				}
+			}
+		}
+		s.tableRows = s.tableRows[:0]
+		return nil
+	}
+	if !s.tableBodyOpen && !row.Header {
+		if _, err := io.WriteString(s.w, "<tbody>"); err != nil {
+			return err
+		}
+		s.tableBodyOpen = true
+	}
+	return s.writeHTMLTableRow(row, s.tableColumns)
+}
+
+func (s *stream) writeFullTable(rows []mdf.TableRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	if err := s.openTable(); err != nil {
+		return err
+	}
+	s.tableColumns = htmlTableColumnCount(rows, s.tableStart.Alignments)
+	idx := 0
+	if rows[0].Header {
+		if _, err := io.WriteString(s.w, "<thead>"); err != nil {
+			return err
+		}
+		if err := s.writeHTMLTableRow(rows[0], s.tableColumns); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(s.w, "</thead>"); err != nil {
+			return err
+		}
+		idx = 1
+	}
+	if idx < len(rows) {
+		if _, err := io.WriteString(s.w, "<tbody>"); err != nil {
+			return err
+		}
+		s.tableBodyOpen = true
+		for ; idx < len(rows); idx++ {
+			if err := s.writeHTMLTableRow(rows[idx], s.tableColumns); err != nil {
+				return err
+			}
+		}
+		if _, err := io.WriteString(s.w, "</tbody>"); err != nil {
+			return err
+		}
+		s.tableBodyOpen = false
+	}
+	return nil
+}
+
+func (s *stream) openTable() error {
+	if len(s.tableStart.Prefix) > 0 {
+		if _, err := io.WriteString(s.w, `<div class="mdf-table-block"><span class="mdf-prefix">`); err != nil {
+			return err
+		}
+		if err := s.writeHTMLTablePrefix(s.tableStart.Prefix); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(s.w, `</span>`); err != nil {
+			return err
+		}
+		s.tableWrapped = true
+	}
+	class := "mdf-table mdf-table-bordered"
+	if s.cfg.TableWireMode == mdf.TableWireSpace {
+		class = "mdf-table mdf-table-space"
+	}
+	_, err := fmt.Fprintf(s.w, `<table class="%s">`, class)
+	if err == nil {
+		s.tableOpen = true
+	}
+	return err
+}
+
+func (s *stream) writeHTMLTablePrefix(prefix []mdf.TablePrefixSegment) error {
+	for _, segment := range prefix {
+		style := s.styleFor(segment.Style)
+		if style == "" {
+			if _, err := io.WriteString(s.w, stdhtml.EscapeString(segment.Text)); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := fmt.Fprintf(s.w, `<span style="%s">%s</span>`, stdhtml.EscapeString(style), stdhtml.EscapeString(segment.Text)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func htmlTableColumnCount(rows []mdf.TableRow, alignments []mdf.TableAlignment) int {
+	if len(alignments) > 0 {
+		return len(alignments)
+	}
+	cols := 0
+	for _, row := range rows {
+		if len(row.Cells) > cols {
+			cols = len(row.Cells)
+		}
+	}
+	if cols == 0 {
+		return 1
+	}
+	return cols
+}
+
+func (s *stream) writeHTMLTableRow(row mdf.TableRow, cols int) error {
+	if _, err := io.WriteString(s.w, "<tr>"); err != nil {
+		return err
+	}
+	tag := "td"
+	if row.Header {
+		tag = "th"
+	}
+	if cols <= 0 {
+		cols = htmlTableColumnCount([]mdf.TableRow{row}, s.tableStart.Alignments)
+	}
+	for i := 0; i < cols; i++ {
+		align := "left"
+		if i < len(s.tableStart.Alignments) {
+			align = htmlTableAlign(s.tableStart.Alignments[i])
+		}
+		if _, err := fmt.Fprintf(s.w, `<%s style="text-align:%s;">`, tag, align); err != nil {
+			return err
+		}
+		if i < len(row.Cells) {
+			if err := s.writeHTMLTableCellContent(row.Cells[i], row.Header); err != nil {
+				return err
+			}
+			if len(s.tableStart.Alignments) == 0 && i == cols-1 {
+				for _, extra := range row.Cells[cols:] {
+					if _, err := io.WriteString(s.w, " | "); err != nil {
+						return err
+					}
+					if err := s.writeHTMLTableCellContent(extra, row.Header); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if _, err := fmt.Fprintf(s.w, `</%s>`, tag); err != nil {
+			return err
+		}
+	}
+	_, err := io.WriteString(s.w, "</tr>")
+	return err
+}
+
+func (s *stream) writeHTMLTableCellContent(cell mdf.TableCell, header bool) error {
+	if len(cell.Tokens) == 0 {
+		_, err := io.WriteString(s.w, stdhtml.EscapeString(cell.Text))
+		return err
+	}
+	currentStyle := ""
+	spanOpen := false
+	closeSpan := func() error {
+		if !spanOpen {
+			return nil
+		}
+		if _, err := io.WriteString(s.w, "</span>"); err != nil {
+			return err
+		}
+		spanOpen = false
+		currentStyle = ""
+		return nil
+	}
+	for _, tok := range cell.Tokens {
+		if tok.Kind == mdf.TokenLinkStart {
+			if err := closeSpan(); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(s.w, `<a href="%s">`, stdhtml.EscapeString(tok.LinkURL)); err != nil {
+				return err
+			}
+			continue
+		}
+		if tok.Kind == mdf.TokenLinkEnd {
+			if err := closeSpan(); err != nil {
+				return err
+			}
+			if _, err := io.WriteString(s.w, "</a>"); err != nil {
+				return err
+			}
+			continue
+		}
+		if tok.Text == "" {
+			continue
+		}
+		styleAttr := s.tableCellTokenStyle(tok.Style, header)
+		if styleAttr != currentStyle {
+			if err := closeSpan(); err != nil {
+				return err
+			}
+			if styleAttr != "" {
+				if _, err := fmt.Fprintf(s.w, `<span style="%s">`, stdhtml.EscapeString(styleAttr)); err != nil {
+					return err
+				}
+				spanOpen = true
+				currentStyle = styleAttr
+			}
+		}
+		if _, err := io.WriteString(s.w, stdhtml.EscapeString(tok.Text)); err != nil {
+			return err
+		}
+	}
+	return closeSpan()
+}
+
+func (s *stream) tableCellTokenStyle(style mdf.Style, header bool) string {
+	if style.Prefix == "" {
+		return ""
+	}
+	if !header || s.styles.TableHeader.Prefix == "" {
+		return s.styleFor(style)
+	}
+	headerAttrs := parseANSIPrefix(s.styles.TableHeader.Prefix, s.cfg.TextRGB)
+	inlineAttrs := parseANSIPrefix(style.Prefix, s.cfg.TextRGB)
+	if s.cfg.IgnoreColors {
+		headerAttrs.color = s.cfg.TextRGB
+	}
+	var b strings.Builder
+	b.WriteString("color:")
+	b.WriteString(rgbCSS(headerAttrs.color))
+	b.WriteByte(';')
+	if headerAttrs.bold || inlineAttrs.bold {
+		b.WriteString("font-weight:700;")
+	}
+	if headerAttrs.italic || inlineAttrs.italic {
+		b.WriteString("font-style:italic;")
+	}
+	if headerAttrs.underline || inlineAttrs.underline {
+		b.WriteString("text-decoration:underline;")
+	}
+	return b.String()
+}
+
+func htmlTableAlign(align mdf.TableAlignment) string {
+	switch align {
+	case mdf.TableAlignRight:
+		return "right"
+	case mdf.TableAlignCenter:
+		return "center"
+	default:
+		return "left"
+	}
 }
 
 func writeFontFace(b *strings.Builder, family string, weight string, style string, data []byte) {
