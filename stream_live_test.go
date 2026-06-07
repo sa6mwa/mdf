@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/muesli/reflow/ansi"
 )
@@ -134,6 +135,50 @@ func TestLiveParserStreamsPlainParagraphBeforeNewline(t *testing.T) {
 	t.Fatalf("expected plain paragraph tokens before newline or EOF")
 }
 
+func TestLiveParserTableCapableStreamDoesNotDelayPlainParagraph(t *testing.T) {
+	for _, src := range []string{
+		"hello",
+		"Hello",
+		"Name",
+		"current status",
+		"longer header cell",
+	} {
+		t.Run(src, func(t *testing.T) {
+			parser := newLiveParser(DefaultTheme(), false)
+			stream := &captureStream{}
+			first, _ := utf8.DecodeRuneInString(src)
+			if err := parser.feedRune(stream, first); err != nil {
+				t.Fatalf("feed rune: %v", err)
+			}
+			if got := tokenTexts(stream.tokens); got == "" {
+				t.Fatalf("expected table-capable stream to emit plain paragraph at first decision point")
+			}
+			if stream.tableStarts != nil || stream.tableRows != nil || stream.tableEnds != 0 {
+				t.Fatalf("plain paragraph emitted table events: starts=%d rows=%d ends=%d", len(stream.tableStarts), len(stream.tableRows), stream.tableEnds)
+			}
+		})
+	}
+}
+
+func TestLiveParserNoEdgeTablePreludeDoesNotSuppressPlainText(t *testing.T) {
+	parser := newLiveParser(DefaultTheme(), false)
+	stream := &captureStream{}
+	for _, r := range "Name | Value\n--- | ---\n" {
+		if err := parser.feedRune(stream, r); err != nil {
+			t.Fatalf("feed rune: %v", err)
+		}
+		if len(stream.tokens) > 0 {
+			break
+		}
+	}
+	if got := tokenTexts(stream.tokens); got == "" {
+		t.Fatalf("expected no-edge table-looking text to stream as plain text before newline")
+	}
+	if parser.tablePendingHeader != "" {
+		t.Fatalf("plain text must not become a pending table header: %q", parser.tablePendingHeader)
+	}
+}
+
 func TestLiveParserStreamsSingleRuneParagraphBeforeNewline(t *testing.T) {
 	parser := newLiveParser(DefaultTheme(), false)
 	stream := &plainCaptureStream{}
@@ -172,36 +217,25 @@ func TestLiveParserStreamsSpaceTerminatedParagraphBeforeNewline(t *testing.T) {
 	}
 }
 
-func TestLiveParserTableCapableParagraphStreamsAfterNoEdgeLookaheadLimit(t *testing.T) {
+func TestLiveParserTableCapableParagraphStreamsImmediately(t *testing.T) {
 	parser := newLiveParser(DefaultTheme(), false)
 	stream := &captureStream{}
-	for _, r := range strings.Repeat("a", maxNoEdgeTableFirstCellPreludeRunes+1) {
-		if err := parser.feedRune(stream, r); err != nil {
-			t.Fatalf("feed rune: %v", err)
-		}
-		if len(stream.tokens) > 0 {
-			return
-		}
+	if err := parser.feedRune(stream, 'a'); err != nil {
+		t.Fatalf("feed rune: %v", err)
 	}
-	t.Fatalf("expected table-capable paragraph to stream after bounded no-edge lookahead")
+	if len(stream.tokens) == 0 {
+		t.Fatalf("expected table-capable paragraph to stream at first paragraph decision")
+	}
 }
 
-func TestLiveParserBuffersSingleUppercaseTablePreludeBeforeNewline(t *testing.T) {
+func TestLiveParserDoesNotBufferSingleUppercaseTablePrelude(t *testing.T) {
 	parser := newLiveParser(DefaultTheme(), false)
 	stream := &captureStream{}
-	for _, r := range "A " {
-		if err := parser.feedRune(stream, r); err != nil {
-			t.Fatalf("feed rune: %v", err)
-		}
+	if err := parser.feedRune(stream, 'A'); err != nil {
+		t.Fatalf("feed rune: %v", err)
 	}
-	if len(stream.tokens) != 0 {
-		t.Fatalf("expected ambiguous single-uppercase table prelude to remain buffered, got %q", tokenTexts(stream.tokens))
-	}
-	if err := parser.finalize(stream); err != nil {
-		t.Fatalf("finalize: %v", err)
-	}
-	if !strings.Contains(tokenTexts(stream.tokens), "A") {
-		t.Fatalf("expected buffered single-uppercase prelude to flush as paragraph at EOF, got %q", tokenTexts(stream.tokens))
+	if got := tokenTexts(stream.tokens); got != "A" {
+		t.Fatalf("expected single-uppercase paragraph to emit immediately, got %q", got)
 	}
 }
 

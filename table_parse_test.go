@@ -263,7 +263,7 @@ func TestLiveParserDirectFeedEmitsTableEvents(t *testing.T) {
 	}
 }
 
-func TestLiveParserDirectFeedEmitsNoEdgeMultiCharacterHeaderTable(t *testing.T) {
+func TestLiveParserDirectFeedStreamsNoEdgeMultiCharacterLinesAsText(t *testing.T) {
 	for _, src := range []string{
 		"Name | Value\n--- | ---\nalpha | beta\n",
 		"status | value\n--- | ---\nok | yes\n",
@@ -279,11 +279,11 @@ func TestLiveParserDirectFeedEmitsNoEdgeMultiCharacterHeaderTable(t *testing.T) 
 			if err := parser.finalize(stream); err != nil {
 				t.Fatalf("finalize: %v", err)
 			}
-			if len(stream.tableStarts) != 1 {
-				t.Fatalf("expected one table start, got %d; tokens %q", len(stream.tableStarts), tokenTexts(stream.tokens))
+			if len(stream.tableStarts) != 0 {
+				t.Fatalf("expected no table starts, got %d; tokens %q", len(stream.tableStarts), tokenTexts(stream.tokens))
 			}
-			if len(stream.tableRows) != 2 || !stream.tableRows[0].Header {
-				t.Fatalf("expected header plus one body row, got rows=%d header=%v", len(stream.tableRows), len(stream.tableRows) > 0 && stream.tableRows[0].Header)
+			if got, want := tokenTexts(stream.tokens), strings.Split(src, "\n")[0]; !strings.Contains(got, want) {
+				t.Fatalf("expected no-edge line to stream as text %q, got %q", want, got)
 			}
 		})
 	}

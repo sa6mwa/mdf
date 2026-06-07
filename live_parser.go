@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 	"unsafe"
 )
@@ -405,115 +404,24 @@ func (p *liveParser) feedRune(stream Stream, r rune) error {
 		}
 		p.lineHasNonSpace = true
 		if !isPotentialBlockStart(r) {
-			if p.shouldDelayNoEdgeTablePrelude(stream) {
-				return nil
-			}
-			if p.shouldEndNoEdgeTablePreludeBeforeCurrentRune(stream, r) {
-				return p.decideLineBeforeCurrentRune(stream, r)
-			}
 			return p.maybeDecideLine(stream, false)
 		}
 		return nil
 	}
 	if r == ' ' || r == '\t' {
-		if p.shouldDelayNoEdgeTablePrelude(stream) {
-			return nil
-		}
+		return p.maybeDecideLine(stream, false)
+	}
+	if r == '|' && !lineStartsWithPipe(p.lineBytes) {
 		return p.maybeDecideLine(stream, false)
 	}
 	if shouldAttemptDecision(p.lineBuf) {
-		if p.shouldDelayNoEdgeTablePrelude(stream) {
-			return nil
-		}
-		if p.shouldEndNoEdgeTablePreludeBeforeCurrentRune(stream, r) {
-			return p.decideLineBeforeCurrentRune(stream, r)
-		}
 		return p.maybeDecideLine(stream, false)
 	}
 	return nil
 }
 
-func (p *liveParser) shouldDelayNoEdgeTablePrelude(stream Stream) bool {
-	if _, tableCapable := stream.(TableStream); !tableCapable {
-		return false
-	}
-	line := bytesToString(p.lineBytes)
-	trimmed := strings.TrimLeft(line, " \t")
-	if len(line)-len(trimmed) >= 4 {
-		return false
-	}
-	if trimmed == "" || strings.HasPrefix(trimmed, "|") || hasUnescapedPipe(trimmed) {
-		return false
-	}
-	return isPossibleNoEdgeTableFirstCellPrefix(trimmed)
-}
-
-const maxNoEdgeTableFirstCellPreludeRunes = 64
-
-func isPossibleNoEdgeTableFirstCellPrefix(text string) bool {
-	text = strings.TrimRight(text, " \t")
-	if text == "" {
-		return false
-	}
-	if utf8.RuneCountInString(text) > maxNoEdgeTableFirstCellPreludeRunes {
-		return false
-	}
-	for _, rr := range text {
-		if unicode.IsLetter(rr) || unicode.IsDigit(rr) || rr == ' ' || rr == '\t' || rr == '-' || rr == '_' {
-			continue
-		}
-		if rr == '.' || rr == ',' || rr == '/' {
-			continue
-		}
-		return false
-	}
-	return strings.TrimSpace(text) != ""
-}
-
-func (p *liveParser) shouldEndNoEdgeTablePreludeBeforeCurrentRune(stream Stream, r rune) bool {
-	if _, tableCapable := stream.(TableStream); !tableCapable {
-		return false
-	}
-	if r == '|' || r == '\n' {
-		return false
-	}
-	line := bytesToString(p.lineBytes)
-	trimmed := strings.TrimLeft(line, " \t")
-	if len(line)-len(trimmed) >= 4 {
-		return false
-	}
-	if trimmed == "" || strings.HasPrefix(trimmed, "|") || hasUnescapedPipe(trimmed) {
-		return false
-	}
-	if len(p.lineBuf) == 0 || p.lineBuf[len(p.lineBuf)-1] != r {
-		return false
-	}
-	withoutCurrent := strings.TrimLeft(string(p.lineBuf[:len(p.lineBuf)-1]), " \t")
-	withoutCurrent = strings.TrimRight(withoutCurrent, " \t")
-	if withoutCurrent == "" || !isPossibleNoEdgeTableFirstCellPrefix(withoutCurrent) {
-		return false
-	}
-	return !isPossibleNoEdgeTableFirstCellPrefix(trimmed)
-}
-
-func (p *liveParser) decideLineBeforeCurrentRune(stream Stream, r rune) error {
-	p.lineBuf = p.lineBuf[:len(p.lineBuf)-1]
-	size := utf8.RuneLen(r)
-	if size > 0 && size <= len(p.lineBytes) {
-		p.lineBytes = p.lineBytes[:len(p.lineBytes)-size]
-	}
-	if err := p.maybeDecideLine(stream, false); err != nil {
-		return err
-	}
-	p.lineBuf = append(p.lineBuf, r)
-	p.lineBytes = utf8.AppendRune(p.lineBytes, r)
-	if p.lineDecided && !p.lineIgnoreRest {
-		if err := p.emitInline(stream, r); err != nil {
-			return err
-		}
-	}
-	p.lineEmitIdx = len(p.lineBuf)
-	return nil
+func lineStartsWithPipe(line []byte) bool {
+	return strings.HasPrefix(strings.TrimLeft(bytesToString(line), " \t"), "|")
 }
 
 func (p *liveParser) resetLine() {
@@ -724,13 +632,12 @@ func isPotentialTablePrelude(line string) bool {
 	if trimmed == "" {
 		return false
 	}
-	if _, ok := parseTableRow(trimmed); ok {
-		return true
-	}
-	if strings.HasPrefix(trimmed, "|") {
-		return true
-	}
-	return false
+	return isStreamingTableStartLine(trimmed)
+}
+
+func isStreamingTableStartLine(line string) bool {
+	line = strings.TrimSpace(line)
+	return strings.HasPrefix(line, "|")
 }
 
 func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
@@ -949,6 +856,9 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		}
 	}
 	if isThematicBreak(rest) {
+		if !force {
+			return nil
+		}
 		if p.pendingBreaks == 0 {
 			p.pendingBreaks = 1
 		}
@@ -1116,8 +1026,12 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 			return nil
 		}
 	}
+	quoteBlockStart := explicit && depth > 0 && p.inParagraph && (p.prevQuoteDepth != depth || p.listLazy)
 	if _, tableCapable := stream.(TableStream); tableCapable {
-		if _, ok := parseTableRow(rest); ok {
+		if isStreamingTableStartLine(rest) {
+			if _, ok := parseTableRow(rest); !ok {
+				return p.decideParagraph(stream, depth, rest, quoteBlockStart)
+			}
 			if !force {
 				return nil
 			}
@@ -1236,7 +1150,6 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		p.lineEmitIdx = len(p.lineBuf) - utf8.RuneCountInString(content)
 		return p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:])
 	}
-	quoteBlockStart := explicit && depth > 0 && p.inParagraph && (p.prevQuoteDepth != depth || p.listLazy)
 	p.listLazy = false
 	p.listItemFirstLine = false
 	outdentIndent := indentForList

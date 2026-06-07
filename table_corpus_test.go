@@ -14,7 +14,7 @@ var tableCorpusExpectedTables = map[string]int{
 	"alignment.md":                        7,
 	"block-contexts.md":                   4,
 	"container-contexts.md":               11,
-	"headerless-pipe.md":                  4,
+	"headerless-pipe.md":                  3,
 	"inline-code-links.md":                3,
 	"inline-emphasis.md":                  3,
 	"inline-escapes-entities.md":          3,
@@ -24,14 +24,14 @@ var tableCorpusExpectedTables = map[string]int{
 	"position-multiple.md":                4,
 	"position-top.md":                     1,
 	"regression-declared-columns.md":      2,
-	"regression-headerless-row-buffer.md": 3,
+	"regression-headerless-row-buffer.md": 2,
 	"regression-non-table-pipes.md":       1,
 	"regression-non-table-pipes-start.md": 1,
 	"regression-pdf-page-fragment.md":     1,
 	"regression-spacing-contexts.md":      3,
-	"regression-streaming-ambiguity.md":   2,
+	"regression-streaming-ambiguity.md":   0,
 	"row-shapes.md":                       4,
-	"syntax-edge-pipes.md":                6,
+	"syntax-edge-pipes.md":                4,
 	"syntax-spacing.md":                   4,
 	"unicode.md":                          3,
 	"wrapping.md":                         4,
@@ -41,7 +41,7 @@ var tableCorpusExpectedHeaderRows = map[string]int{
 	"container-contexts.md":               10,
 	"headerless-pipe.md":                  0,
 	"regression-headerless-row-buffer.md": 0,
-	"regression-streaming-ambiguity.md":   1,
+	"regression-streaming-ambiguity.md":   0,
 }
 
 func TestMarkdownTableCorpusParserEvents(t *testing.T) {
@@ -235,15 +235,12 @@ func TestMarkdownTableCorpusStreamingRegression(t *testing.T) {
 	}
 	parser := newLiveParser(DefaultTheme(), false)
 	stream := &captureStream{}
-	for _, r := range strings.Repeat("h", maxNoEdgeTableFirstCellPreludeRunes+1) {
-		if err := parser.feedRune(stream, r); err != nil {
-			t.Fatalf("feed corpus probe rune: %v", err)
-		}
-		if len(stream.tokens) > 0 {
-			return
-		}
+	if err := parser.feedRune(stream, 'h'); err != nil {
+		t.Fatalf("feed corpus probe rune: %v", err)
 	}
-	t.Fatalf("expected corpus plain paragraph probe to stream before newline or EOF")
+	if len(stream.tokens) == 0 {
+		t.Fatalf("expected corpus plain paragraph probe to stream at first paragraph decision")
+	}
 }
 
 func assertRenderedCorpusMode(t *testing.T, out string, wire TableWireMode, tables int) {

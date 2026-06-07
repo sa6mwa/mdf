@@ -20,6 +20,12 @@ func (f *frontMatterFilter) process(chunk []byte) []byte {
 		return chunk
 	}
 	f.probe = append(f.probe, chunk...)
+	if !frontMatterOpeningPrefixPossible(f.probe) {
+		out := f.probe
+		f.passthrough = true
+		f.probe = f.probe[:0]
+		return out
+	}
 	out, decided := f.decide(false)
 	if !decided && len(f.probe) > maxFrontMatterProbeBytes {
 		out = f.probe
@@ -31,6 +37,55 @@ func (f *frontMatterFilter) process(chunk []byte) []byte {
 		return out
 	}
 	return nil
+}
+
+func frontMatterOpeningPrefixPossible(src []byte) bool {
+	if len(src) == 0 {
+		return true
+	}
+	if len(src) < 3 {
+		bom := []byte{0xEF, 0xBB, 0xBF}
+		if bytes.Equal(src, bom[:len(src)]) {
+			return true
+		}
+	}
+	src = trimBOM(src)
+	i := 0
+	for i < len(src) && (src[i] == ' ' || src[i] == '\t') {
+		i++
+	}
+	if i == len(src) {
+		return true
+	}
+	ch := src[i]
+	if ch != '-' && ch != '+' && ch != ';' {
+		return false
+	}
+	j := i
+	for j < len(src) && src[j] == ch {
+		j++
+	}
+	count := j - i
+	if count > 3 {
+		return false
+	}
+	if count < 3 && j < len(src) {
+		return false
+	}
+	if count < 3 {
+		return true
+	}
+	for j < len(src) {
+		switch src[j] {
+		case ' ', '\t', '\r':
+			j++
+		case '\n':
+			return true
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (f *frontMatterFilter) finish() []byte {

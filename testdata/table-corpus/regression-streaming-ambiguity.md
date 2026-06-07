@@ -1,20 +1,20 @@
 # Regression: Streaming Table Ambiguity
 
-Plain paragraphs should stream before newline, but possible no-edge table rows
-need enough lookahead to avoid being consumed as ordinary text.
+Plain paragraphs should stream before newline. No-edge pipe-looking lines must
+not delay ordinary text emission.
 
 ## Plain Paragraph
 
 hello world streams before newline in live parsing
 
-## No Edge Header Table
+## No Edge Header-Like Text
 
 A | B
 --- | ---
 1 | 2
 alpha | beta
 
-## No Edge Headerless Table
+## No Edge Headerless-Like Text
 
 left | right
 one | two

@@ -2,9 +2,8 @@
 //
 // This package is built for streaming: it parses incrementally from an io.Reader
 // and emits a style-aware ANSI token stream that is wrapped only at the final
-// output step. The renderer avoids buffering full documents; it uses only
-// bounded lookahead where Markdown block recognition requires it, such as
-// no-edge pipe tables.
+// output step. The renderer avoids buffering full documents, and table
+// recognition does not delay ordinary paragraph emission.
 //
 // Core properties:
 //   - Streaming-first parsing from io.Reader

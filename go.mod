@@ -17,7 +17,8 @@ require (
 )
 
 retract (
+	// Streaming table lookahead regressed minimum normal paragraph emission.
+	[v0.4.0, v0.5.0]
 	v0.0.2
-	v0.0.1
 	v0.0.1
 )

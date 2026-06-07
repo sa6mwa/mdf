@@ -7,8 +7,8 @@ Markdown *FAST!* is a high-performance Markdown → ANSI renderer optimized for 
 ## Design
 
 - Stream parse from an `io.Reader`.
-- Emit tokens as soon as block decisions are made, using only bounded lookahead
-  for ambiguous Markdown constructs such as no-edge pipe tables.
+- Emit tokens as soon as block decisions are made; table recognition must not
+  delay ordinary paragraph output.
 - Wrap only at the final step with ANSI-aware reflow.
 - Zero/near-zero alloc in hot paths.
 - PDF renderer uses the same streaming pipeline: `io.Reader` → tokens → `io.Writer`.

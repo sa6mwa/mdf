@@ -70,39 +70,33 @@ func TestStreamRendererResetNormalizesTableDefaults(t *testing.T) {
 	assertContains(t, plain, "│ 1 │ 2 │")
 }
 
-func TestRenderNoEdgePipeTable(t *testing.T) {
+func TestRenderNoEdgePipeLinesAsStreamingParagraphs(t *testing.T) {
 	src := "A | B\n--- | ---\n1 | 2\n"
 	out := stripANSI(renderStreamWithOptions(t, []byte(src), 80, WithOSC8(false), WithTableBufferMode(TableBufferFull), WithTableWireMode(TableWireASCII)))
-	assertContains(t, out, "+---+---+")
-	assertContains(t, out, "| A | B |")
-	assertContains(t, out, "| 1 | 2 |")
-	if strings.Contains(out, "--- | ---") {
-		t.Fatalf("no-edge table delimiter rendered as plain text:\n%s", out)
-	}
+	assertContains(t, out, "A | B")
+	assertContains(t, out, "--- | ---")
+	assertContains(t, out, "1 | 2")
+	assertNotContains(t, out, "+---+---+")
 }
 
-func TestRenderNoEdgePipeTableWithMultiCharacterHeader(t *testing.T) {
+func TestRenderNoEdgePipeMultiCharacterLinesAsStreamingParagraphs(t *testing.T) {
 	for _, tc := range []struct {
-		src      string
-		header   string
-		body     string
-		rawProbe string
+		src  string
+		want string
 	}{
-		{src: "Name | Value\n--- | ---\nalpha | beta\n", header: "| Name  | Value |", body: "| alpha | beta  |", rawProbe: "Name | Value"},
-		{src: "ID | Name\n--- | ---\n1 | Alice\n", header: "| ID | Name  |", body: "| 1  | Alice |", rawProbe: "ID | Name"},
-		{src: "Foo | Bar\n--- | ---\none | two\n", header: "| Foo | Bar |", body: "| one | two |", rawProbe: "Foo | Bar"},
-		{src: "Fruit | Count\n--- | ---:\napple | 10\n", header: "| Fruit | Count |", body: "| apple |    10 |", rawProbe: "Fruit | Count"},
-		{src: "status | value\n--- | ---\nok | yes\n", header: "| status | value |", body: "| ok     | yes   |", rawProbe: "status | value"},
-		{src: "current status | value\n--- | ---\nok | yes\n", header: "| current status | value |", body: "| ok             | yes   |", rawProbe: "current status | value"},
-		{src: "longer header cell | value\n--- | ---\nok | yes\n", header: "| longer header cell | value |", body: "| ok                 | yes   |", rawProbe: "longer header cell | value"},
+		{src: "Name | Value\n--- | ---\nalpha | beta\n", want: "Name | Value"},
+		{src: "ID | Name\n--- | ---\n1 | Alice\n", want: "ID | Name"},
+		{src: "Foo | Bar\n--- | ---\none | two\n", want: "Foo | Bar"},
+		{src: "Fruit | Count\n--- | ---:\napple | 10\n", want: "Fruit | Count"},
+		{src: "status | value\n--- | ---\nok | yes\n", want: "status | value"},
+		{src: "current status | value\n--- | ---\nok | yes\n", want: "current status | value"},
+		{src: "longer header cell | value\n--- | ---\nok | yes\n", want: "longer header cell | value"},
 	} {
-		t.Run(tc.rawProbe, func(t *testing.T) {
+		t.Run(tc.want, func(t *testing.T) {
 			out := stripANSI(renderStreamWithOptions(t, []byte(tc.src), 80, WithOSC8(false), WithTableBufferMode(TableBufferFull), WithTableWireMode(TableWireASCII)))
-			assertContains(t, out, tc.header)
-			assertContains(t, out, tc.body)
-			if strings.Contains(out, "--- | ---") {
-				t.Fatalf("no-edge multi-character header table rendered as paragraph:\n%s", out)
-			}
+			assertContains(t, out, tc.want)
+			assertContains(t, out, "--- | ---")
+			assertNotContains(t, out, "+")
 		})
 	}
 }
@@ -631,6 +625,13 @@ func assertContains(t *testing.T, got string, want string) {
 	t.Helper()
 	if !strings.Contains(got, want) {
 		t.Fatalf("expected output to contain %q, got:\n%s", want, got)
+	}
+}
+
+func assertNotContains(t *testing.T, got string, want string) {
+	t.Helper()
+	if strings.Contains(got, want) {
+		t.Fatalf("expected output not to contain %q, got:\n%s", want, got)
 	}
 }
 

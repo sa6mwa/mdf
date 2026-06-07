@@ -112,3 +112,60 @@ func TestRenderAfterInitialFrontMatterStopsCheckingForMore(t *testing.T) {
 		}
 	}
 }
+
+func TestFrontMatterFilterPassesNonDelimiterStartImmediately(t *testing.T) {
+	t.Parallel()
+	for _, src := range []string{
+		"# A Header\n",
+		"hello world\n",
+		"Name | Value\n",
+		"> quote\n",
+	} {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			var filter frontMatterFilter
+			filter.reset()
+			out := filter.process([]byte(src[:1]))
+			if string(out) != src[:1] {
+				t.Fatalf("first byte output = %q, want %q", string(out), src[:1])
+			}
+			if !filter.passthrough {
+				t.Fatalf("filter did not enter passthrough after non-delimiter start")
+			}
+		})
+	}
+}
+
+func TestFrontMatterFilterKeepsDelimiterCandidatesBuffered(t *testing.T) {
+	t.Parallel()
+	for _, src := range []string{"-", "--", "---", "--- ", "+", "+++", ";;"} {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			var filter frontMatterFilter
+			filter.reset()
+			if out := filter.process([]byte(src)); len(out) != 0 {
+				t.Fatalf("candidate %q output too early: %q", src, string(out))
+			}
+			if filter.passthrough {
+				t.Fatalf("candidate %q entered passthrough too early", src)
+			}
+		})
+	}
+}
+
+func TestFrontMatterFilterPassesInvalidDelimiterPrefixImmediately(t *testing.T) {
+	t.Parallel()
+	for _, src := range []string{"- ", "----", "---x", "++++", ";;;;"} {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			var filter frontMatterFilter
+			filter.reset()
+			if out := filter.process([]byte(src)); string(out) != src {
+				t.Fatalf("invalid delimiter output = %q, want %q", string(out), src)
+			}
+			if !filter.passthrough {
+				t.Fatalf("invalid delimiter %q did not enter passthrough", src)
+			}
+		})
+	}
+}
