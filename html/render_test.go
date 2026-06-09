@@ -21,8 +21,9 @@ func TestRenderWritesSelfContainedHTML(t *testing.T) {
 	rendered := out.String()
 	wants := []string{
 		"<!doctype html>",
-		"@font-face{font-family:\"HackNerdFontMono\"",
-		"src:url(data:font/ttf;base64,",
+		"@font-face{font-family:\"JetBrains Mono\"",
+		"src:url(data:font/woff2;base64,",
+		"format('woff2')",
 		"--mdf-content-max-width:96ch;",
 		"--mdf-page-padding-block:36pt;",
 		"--mdf-page-padding-inline:36pt;",
@@ -47,6 +48,99 @@ func TestRenderWritesSelfContainedHTML(t *testing.T) {
 	}
 	if strings.Contains(rendered, "<script") {
 		t.Fatalf("unexpected script tag in rendered HTML")
+	}
+}
+
+func TestRenderCanOptIntoEmbeddedHackFont(t *testing.T) {
+	var out bytes.Buffer
+	cfg := DefaultConfig()
+	cfg.EmbeddedFont = EmbeddedFontHack
+	err := Render(RenderRequest{
+		Reader: strings.NewReader("body\n"),
+		Writer: &out,
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("render html: %v", err)
+	}
+	rendered := out.String()
+	for _, want := range []string{
+		"@font-face{font-family:\"HackNerdFontMono\"",
+		"src:url(data:font/ttf;base64,",
+		"format('truetype')",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("missing %q in rendered HTML", want)
+		}
+	}
+}
+
+func TestRenderRejectsUnknownEmbeddedFont(t *testing.T) {
+	var out bytes.Buffer
+	cfg := DefaultConfig()
+	cfg.EmbeddedFont = EmbeddedFont("nope")
+	err := Render(RenderRequest{
+		Reader: strings.NewReader("body\n"),
+		Writer: &out,
+		Config: cfg,
+	})
+	if err == nil {
+		t.Fatalf("expected unknown embedded font to be rejected")
+	}
+	if !strings.Contains(err.Error(), `unsupported embedded font "nope"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRenderSupportsEmbeddedWOFFFontBytes(t *testing.T) {
+	var out bytes.Buffer
+	cfg := DefaultConfig()
+	cfg.FontFamily = "Custom"
+	cfg.RegularFontBytes = []byte("regular")
+	cfg.BoldFontBytes = []byte("bold")
+	cfg.ItalicFontBytes = []byte("italic")
+	cfg.RegularFontFormat = "woff"
+	cfg.BoldFontFormat = "woff"
+	cfg.ItalicFontFormat = "woff"
+	err := Render(RenderRequest{
+		Reader: strings.NewReader("body\n"),
+		Writer: &out,
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("render html: %v", err)
+	}
+	rendered := out.String()
+	for _, want := range []string{
+		`@font-face{font-family:"Custom";src:url(data:font/woff;base64,`,
+		`format('woff')`,
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("missing %q in rendered HTML: %q", want, rendered)
+		}
+	}
+}
+
+func TestRenderRejectsUnsupportedEmbeddedFontFormat(t *testing.T) {
+	var out bytes.Buffer
+	cfg := DefaultConfig()
+	cfg.FontFamily = "Custom"
+	cfg.RegularFontBytes = []byte("regular")
+	cfg.BoldFontBytes = []byte("bold")
+	cfg.ItalicFontBytes = []byte("italic")
+	cfg.RegularFontFormat = "svg"
+	cfg.BoldFontFormat = "svg"
+	cfg.ItalicFontFormat = "svg"
+	err := Render(RenderRequest{
+		Reader: strings.NewReader("body\n"),
+		Writer: &out,
+		Config: cfg,
+	})
+	if err == nil {
+		t.Fatalf("expected unsupported embedded font format to be rejected")
+	}
+	if !strings.Contains(err.Error(), `unsupported regular font format "svg"`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

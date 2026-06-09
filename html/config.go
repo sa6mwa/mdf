@@ -5,6 +5,17 @@ import (
 	"pkt.systems/mdf/pdf"
 )
 
+// EmbeddedFont identifies a vendored HTML font bundle.
+type EmbeddedFont string
+
+const (
+	// EmbeddedFontJetBrainsMono selects the vendored JetBrains Mono variable
+	// webfont bundle.
+	EmbeddedFontJetBrainsMono EmbeddedFont = "jetbrainsmono"
+	// EmbeddedFontHack selects the vendored Hack Nerd Font Mono TTF bundle.
+	EmbeddedFontHack EmbeddedFont = "hack"
+)
+
 // Config holds HTML rendering settings.
 type Config struct {
 	// Margin controls page padding in points.
@@ -13,6 +24,9 @@ type Config struct {
 	ContentMaxWidthCh float64
 	// FontFamily is the CSS font-family name used for body text.
 	FontFamily string
+	// EmbeddedFont selects the vendored HTML font bundle when explicit font
+	// paths or embedded font bytes are not provided.
+	EmbeddedFont EmbeddedFont
 	// FontSize is the base font size in points.
 	FontSize float64
 	// LineHeight is the CSS line-height multiplier.
@@ -22,8 +36,12 @@ type Config struct {
 	// HeadingFont is an optional TTF path for headings.
 	HeadingFont string
 	// RegularFontBytes, BoldFontBytes, ItalicFontBytes, and BoldItalicFontBytes
-	// embed TTF font data directly. They cannot be mixed with font paths.
+	// embed font data directly. They cannot be mixed with font paths.
 	RegularFontBytes, BoldFontBytes, ItalicFontBytes, BoldItalicFontBytes []byte
+	// RegularFontFormat, BoldFontFormat, ItalicFontFormat, and
+	// BoldItalicFontFormat are CSS font format hints for the corresponding
+	// embedded font bytes. They default to "truetype".
+	RegularFontFormat, BoldFontFormat, ItalicFontFormat, BoldItalicFontFormat string
 	// HeadingFontBytes embeds optional heading TTF data directly.
 	HeadingFontBytes []byte
 	// HeadingScale contains font-size multipliers for H1 through H6.
@@ -61,7 +79,8 @@ func DefaultConfig() Config {
 	return Config{
 		Margin:               pdfCfg.Margin,
 		ContentMaxWidthCh:    96,
-		FontFamily:           pdf.EmbeddedFontFamily,
+		FontFamily:           jetBrainsMonoFontFamily,
+		EmbeddedFont:         EmbeddedFontJetBrainsMono,
 		FontSize:             pdfCfg.FontSize,
 		LineHeight:           pdfCfg.LineHeight,
 		HeadingScale:         pdfCfg.HeadingScale,

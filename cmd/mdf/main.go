@@ -43,6 +43,7 @@ func main() {
 		outPath           string
 		boring            bool
 		htmlMode          bool
+		htmlFont          string
 		htmlContentWidth  float64
 		pdfMode           bool
 		tableBufferFlag   string
@@ -79,6 +80,7 @@ func main() {
 	flags.StringVarP(&outPath, "output", "o", "", "Output file instead of stdout")
 	flags.BoolVarP(&boring, "boring", "b", false, "Generate non-ANSI output or boring PDF")
 	flags.BoolVar(&htmlMode, "html", false, "Generate self-contained HTML instead of ANSI output")
+	flags.StringVar(&htmlFont, "html-font", string(htmlDefaults.EmbeddedFont), "Embedded HTML font: jetbrainsmono|hack")
 	flags.Float64Var(&htmlContentWidth, "html-content-width", htmlDefaults.ContentMaxWidthCh, "HTML content max width in ch")
 	flags.BoolVar(&pdfMode, "pdf", false, "Generate a PDF instead of ANSI output")
 	flags.StringVar(&tableBufferFlag, "table-buffer", "full", "Table buffering mode: full|row")
@@ -228,6 +230,7 @@ func main() {
 			tableBufferMode:  tableBufferMode,
 			tableWireMode:    tableWireMode,
 			htmlContentWidth: htmlContentWidth,
+			htmlEmbeddedFont: htmlFont,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "render html: %v\n", err)
 			os.Exit(1)
@@ -277,6 +280,7 @@ type pdfConfig struct {
 	tableBufferMode  mdf.TableBufferMode
 	tableWireMode    mdf.TableWireMode
 	htmlContentWidth float64
+	htmlEmbeddedFont string
 }
 
 func renderPDF(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdfConfig) error {
@@ -410,6 +414,7 @@ func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pd
 	cfg.Boring = boring
 	cfg.TableBufferMode = cfgIn.tableBufferMode
 	cfg.TableWireMode = cfgIn.tableWireMode
+	cfg.EmbeddedFont = mdfhtml.EmbeddedFont(strings.TrimSpace(cfgIn.htmlEmbeddedFont))
 
 	reg, bold, italic := strings.TrimSpace(cfgIn.regularFont), strings.TrimSpace(cfgIn.boldFont), strings.TrimSpace(cfgIn.italicFont)
 	if reg != "" || bold != "" || italic != "" {
@@ -446,6 +451,11 @@ func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pd
 			return fmt.Errorf("heading font: %w", err)
 		}
 		cfg.HeadingFont = heading
+	}
+	switch mdfhtml.EmbeddedFont(strings.TrimSpace(cfgIn.htmlEmbeddedFont)) {
+	case "", mdfhtml.EmbeddedFontJetBrainsMono, mdfhtml.EmbeddedFontHack:
+	default:
+		return fmt.Errorf("html embedded font %q is unsupported; use jetbrainsmono or hack", cfgIn.htmlEmbeddedFont)
 	}
 
 	return mdfhtml.Render(mdfhtml.RenderRequest{

@@ -226,15 +226,15 @@ func (s *stream) writeDocumentStart() error {
 }
 
 func (s *stream) writeCSS(b *strings.Builder) {
-	writeFontFace(b, s.cfg.FontFamily, "400", "normal", s.cfg.RegularFontBytes)
-	writeFontFace(b, s.cfg.FontFamily, "700", "normal", s.cfg.BoldFontBytes)
-	writeFontFace(b, s.cfg.FontFamily, "400", "italic", s.cfg.ItalicFontBytes)
+	writeFontFace(b, s.cfg.FontFamily, "400", "normal", s.cfg.RegularFontBytes, s.cfg.RegularFontFormat)
+	writeFontFace(b, s.cfg.FontFamily, "700", "normal", s.cfg.BoldFontBytes, s.cfg.BoldFontFormat)
+	writeFontFace(b, s.cfg.FontFamily, "400", "italic", s.cfg.ItalicFontBytes, s.cfg.ItalicFontFormat)
 	if len(s.cfg.BoldItalicFontBytes) > 0 {
-		writeFontFace(b, s.cfg.FontFamily, "700", "italic", s.cfg.BoldItalicFontBytes)
+		writeFontFace(b, s.cfg.FontFamily, "700", "italic", s.cfg.BoldItalicFontBytes, s.cfg.BoldItalicFontFormat)
 	}
 	if len(s.cfg.HeadingFontBytes) > 0 {
-		writeFontFace(b, headingFontFamily, "400", "normal", s.cfg.HeadingFontBytes)
-		writeFontFace(b, headingFontFamily, "700", "normal", s.cfg.HeadingFontBytes)
+		writeFontFace(b, headingFontFamily, "400", "normal", s.cfg.HeadingFontBytes, "truetype")
+		writeFontFace(b, headingFontFamily, "700", "normal", s.cfg.HeadingFontBytes, "truetype")
 	}
 	bg := "transparent"
 	if s.cfg.BackgroundEnabled {
@@ -578,19 +578,45 @@ func htmlTableAlign(align mdf.TableAlignment) string {
 	}
 }
 
-func writeFontFace(b *strings.Builder, family string, weight string, style string, data []byte) {
+func writeFontFace(b *strings.Builder, family string, weight string, style string, data []byte, format string) {
 	if len(data) == 0 {
 		return
 	}
+	mime := fontMIMEForFormat(format)
+	if mime == "" {
+		mime = "font/ttf"
+	}
+	if format == "" {
+		format = "truetype"
+	}
 	b.WriteString("@font-face{font-family:")
 	b.WriteString(cssString(family))
-	b.WriteString(";src:url(data:font/ttf;base64,")
+	b.WriteString(";src:url(data:")
+	b.WriteString(mime)
+	b.WriteString(";base64,")
 	b.WriteString(base64.StdEncoding.EncodeToString(data))
-	b.WriteString(") format('truetype');font-weight:")
+	b.WriteString(") format('")
+	b.WriteString(format)
+	b.WriteString("');font-weight:")
 	b.WriteString(weight)
 	b.WriteString(";font-style:")
 	b.WriteString(style)
 	b.WriteString(";font-display:block;}\n")
+}
+
+func fontMIMEForFormat(format string) string {
+	switch format {
+	case "woff2":
+		return "font/woff2"
+	case "woff":
+		return "font/woff"
+	case "opentype":
+		return "font/otf"
+	case "", "truetype":
+		return "font/ttf"
+	default:
+		return ""
+	}
 }
 
 func (s *stream) openLink(url string) error {

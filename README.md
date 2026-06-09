@@ -34,6 +34,9 @@ mdf -o agents.pdf --pdf --pdf-font-size 10 https://pkt.systems/centaur.md
 # Generate self-contained HTML:
 mdf --html -o agents.html --html-content-width 96 testdata/agents.md
 
+# Opt into embedded Hack Nerd Font for HTML:
+mdf --html --html-font hack -o agents.html testdata/agents.md
+
 # Choose table buffering and table wire style:
 mdf --table-buffer row --table-wire ascii testdata/agents.md
 ```
@@ -91,6 +94,7 @@ defer f.Close()
 cfg := html.DefaultConfig()
 cfg.ContentMaxWidthCh = 96
 cfg.TableBufferMode = mdf.TableBufferFull
+cfg.EmbeddedFont = html.EmbeddedFontHack // optional; default is JetBrains Mono
 
 _ = html.Render(html.RenderRequest{
 	Reader: f,
@@ -100,9 +104,11 @@ _ = html.Render(html.RenderRequest{
 })
 ```
 
-HTML output is self-contained and embeds fonts by default. Markdown thematic
-breaks are consumed as structural separators and are intentionally not emitted
-as visible `<hr>` rules.
+HTML output is self-contained and embeds JetBrains Mono variable webfonts by
+default. Set `--html-font hack` or `cfg.EmbeddedFont = html.EmbeddedFontHack`
+to opt into the vendored Hack Nerd Font bundle. Markdown thematic breaks are
+consumed as structural separators and are intentionally not emitted as visible
+`<hr>` rules.
 
 ## Tables
 

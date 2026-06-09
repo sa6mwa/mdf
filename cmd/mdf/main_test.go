@@ -79,6 +79,8 @@ func TestRenderHTML(t *testing.T) {
 		"--mdf-page-padding-block:24pt;",
 		"--mdf-page-padding-inline:24pt;",
 		"--mdf-content-max-width:72ch;",
+		"@font-face{font-family:\"JetBrains Mono\"",
+		"src:url(data:font/woff2;base64,",
 		"font-size:10pt;",
 		"line-height:1.2;",
 		"Body",
@@ -87,6 +89,36 @@ func TestRenderHTML(t *testing.T) {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("missing %q in rendered HTML", want)
 		}
+	}
+}
+
+func TestRenderHTMLCanOptIntoEmbeddedHackFont(t *testing.T) {
+	var out bytes.Buffer
+	err := renderHTML(strings.NewReader("Body\n"), &out, nil, false, pdfConfig{
+		htmlEmbeddedFont: "hack",
+	})
+	if err != nil {
+		t.Fatalf("render html: %v", err)
+	}
+	rendered := out.String()
+	if !strings.Contains(rendered, `@font-face{font-family:"HackNerdFontMono"`) {
+		t.Fatalf("missing embedded hack font: %q", rendered)
+	}
+	if !strings.Contains(rendered, "src:url(data:font/ttf;base64,") {
+		t.Fatalf("expected embedded hack TTF font: %q", rendered)
+	}
+}
+
+func TestRenderHTMLRejectsUnknownEmbeddedFont(t *testing.T) {
+	var out bytes.Buffer
+	err := renderHTML(strings.NewReader("Body\n"), &out, nil, false, pdfConfig{
+		htmlEmbeddedFont: "unknown",
+	})
+	if err == nil {
+		t.Fatalf("expected unknown embedded html font to be rejected")
+	}
+	if !strings.Contains(err.Error(), `html embedded font "unknown" is unsupported`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

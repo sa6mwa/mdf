@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"pkt.systems/mdf"
-	"pkt.systems/mdf/pdf"
 )
 
 // RenderRequest contains inputs for HTML rendering.
@@ -83,6 +82,9 @@ func applyConfig(dst *Config, src Config) {
 	if src.FontFamily != "" {
 		dst.FontFamily = src.FontFamily
 	}
+	if src.EmbeddedFont != "" {
+		dst.EmbeddedFont = src.EmbeddedFont
+	}
 	if src.FontSize > 0 {
 		dst.FontSize = src.FontSize
 	}
@@ -115,6 +117,18 @@ func applyConfig(dst *Config, src Config) {
 	}
 	if len(src.BoldItalicFontBytes) > 0 {
 		dst.BoldItalicFontBytes = src.BoldItalicFontBytes
+	}
+	if src.RegularFontFormat != "" {
+		dst.RegularFontFormat = src.RegularFontFormat
+	}
+	if src.BoldFontFormat != "" {
+		dst.BoldFontFormat = src.BoldFontFormat
+	}
+	if src.ItalicFontFormat != "" {
+		dst.ItalicFontFormat = src.ItalicFontFormat
+	}
+	if src.BoldItalicFontFormat != "" {
+		dst.BoldItalicFontFormat = src.BoldItalicFontFormat
 	}
 	if len(src.HeadingFontBytes) > 0 {
 		dst.HeadingFontBytes = src.HeadingFontBytes
@@ -179,28 +193,53 @@ func resolveFonts(cfg *Config) error {
 		if cfg.RegularFontBytes, err = readFont("regular font", cfg.RegularFont); err != nil {
 			return err
 		}
+		cfg.RegularFontFormat = "truetype"
 		if cfg.BoldFontBytes, err = readFont("bold font", cfg.BoldFont); err != nil {
 			return err
 		}
+		cfg.BoldFontFormat = "truetype"
 		if cfg.ItalicFontBytes, err = readFont("italic font", cfg.ItalicFont); err != nil {
 			return err
 		}
+		cfg.ItalicFontFormat = "truetype"
 		if cfg.BoldItalicFont != "" {
 			if cfg.BoldItalicFontBytes, err = readFont("bold-italic font", cfg.BoldItalicFont); err != nil {
 				return err
 			}
+			cfg.BoldItalicFontFormat = "truetype"
 		}
 	}
 	if !hasPath && !hasBytes {
-		regular, bold, italic, boldItalic, err := pdf.EmbeddedHackFonts()
+		bundle, err := loadEmbeddedFontBundle(cfg.EmbeddedFont)
 		if err != nil {
-			return fmt.Errorf("html render: embedded fonts: %w", err)
+			return err
 		}
-		cfg.FontFamily = pdf.EmbeddedFontFamily
-		cfg.RegularFontBytes = regular
-		cfg.BoldFontBytes = bold
-		cfg.ItalicFontBytes = italic
-		cfg.BoldItalicFontBytes = boldItalic
+		cfg.FontFamily = bundle.family
+		cfg.RegularFontBytes = bundle.regular.data
+		cfg.BoldFontBytes = bundle.bold.data
+		cfg.ItalicFontBytes = bundle.italic.data
+		cfg.BoldItalicFontBytes = bundle.boldItalic.data
+		cfg.RegularFontFormat = bundle.regular.format
+		cfg.BoldFontFormat = bundle.bold.format
+		cfg.ItalicFontFormat = bundle.italic.format
+		cfg.BoldItalicFontFormat = bundle.boldItalic.format
+	}
+	if hasBytes {
+		var err error
+		if cfg.RegularFontFormat, err = normalizeFontFormat("regular font", cfg.RegularFontFormat); err != nil {
+			return err
+		}
+		if cfg.BoldFontFormat, err = normalizeFontFormat("bold font", cfg.BoldFontFormat); err != nil {
+			return err
+		}
+		if cfg.ItalicFontFormat, err = normalizeFontFormat("italic font", cfg.ItalicFontFormat); err != nil {
+			return err
+		}
+		if len(cfg.BoldItalicFontBytes) > 0 {
+			if cfg.BoldItalicFontFormat, err = normalizeFontFormat("bold-italic font", cfg.BoldItalicFontFormat); err != nil {
+				return err
+			}
+		}
 	}
 	if cfg.HeadingFont != "" {
 		heading, err := readFont("heading font", cfg.HeadingFont)
@@ -210,6 +249,18 @@ func resolveFonts(cfg *Config) error {
 		cfg.HeadingFontBytes = heading
 	}
 	return nil
+}
+
+func normalizeFontFormat(label string, format string) (string, error) {
+	format = strings.ToLower(strings.TrimSpace(format))
+	switch format {
+	case "", "truetype":
+		return "truetype", nil
+	case "opentype", "woff", "woff2":
+		return format, nil
+	default:
+		return "", fmt.Errorf("html render: unsupported %s format %q", label, format)
+	}
 }
 
 func readFont(label string, path string) ([]byte, error) {

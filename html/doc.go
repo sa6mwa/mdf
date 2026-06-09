@@ -2,10 +2,12 @@
 // streaming parser.
 //
 // The renderer consumes an io.Reader and writes a complete HTML document to an
-// io.Writer. It preserves the PDF renderer's theme, font, margin, line-height,
+// io.Writer. It preserves the PDF renderer's theme, margin, line-height,
 // heading scale, background, optional corner image settings, configurable
 // content width, and Markdown table rendering while leaving wrapping to the
-// browser so content adapts to the viewport.
+// browser so content adapts to the viewport. HTML embeds JetBrains Mono
+// variable webfonts by default and can opt into the vendored Hack Nerd Font
+// bundle when required.
 //
 // Markdown thematic breaks are intentionally consumed as structural separators
 // and are not emitted as visible HTML rules.
