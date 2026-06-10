@@ -14,6 +14,8 @@ const headingFontFamily = "Heading"
 
 type stream struct {
 	w             io.Writer
+	trace         *mdf.WriteTraceEmitter
+	traceText     strings.Builder
 	cfg           Config
 	styles        mdf.Styles
 	cornerImage   *embeddedImage
@@ -44,9 +46,10 @@ type styledRune struct {
 	style mdf.Style
 }
 
-func newStream(w io.Writer, cfg Config, styles mdf.Styles, cornerImage *embeddedImage) *stream {
+func newStream(w io.Writer, cfg Config, styles mdf.Styles, cornerImage *embeddedImage, trace mdf.WriteTraceEncoder) *stream {
 	return &stream{
 		w:           w,
+		trace:       mdf.NewWriteTraceEmitter(mdf.WriteTraceFormatHTML, trace),
 		cfg:         cfg,
 		styles:      styles,
 		cornerImage: cornerImage,
@@ -128,17 +131,17 @@ func (s *stream) EndTable() error {
 			return err
 		}
 	} else if s.tableBodyOpen {
-		if _, err := io.WriteString(s.w, "</tbody>"); err != nil {
+		if err := s.writeEmissionString("</tbody>"); err != nil {
 			return err
 		}
 	}
 	if s.tableOpen {
-		if _, err := io.WriteString(s.w, "</table>\n"); err != nil {
+		if err := s.writeEmissionString("</table>\n"); err != nil {
 			return err
 		}
 	}
 	if s.tableWrapped {
-		if _, err := io.WriteString(s.w, "</div>"); err != nil {
+		if err := s.writeEmissionString("</div>"); err != nil {
 			return err
 		}
 	}
@@ -171,7 +174,7 @@ func (s *stream) closeInlineForBlock() error {
 		return err
 	}
 	if !s.atLineStart {
-		if _, err := io.WriteString(s.w, "\n"); err != nil {
+		if err := s.writeEmissionString("\n"); err != nil {
 			return err
 		}
 		s.atLineStart = true
@@ -202,7 +205,10 @@ func (s *stream) Flush() error {
 	if err := s.closeLink(); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, "\n</main>\n</body>\n</html>\n")
+	if err := s.flushTraceText(); err != nil {
+		return err
+	}
+	err := s.writeEmissionString("\n</main>\n</body>\n</html>\n")
 	s.documentEnded = true
 	return err
 }
@@ -221,8 +227,7 @@ func (s *stream) writeDocumentStart() error {
 		b.WriteString(s.cornerImage.data)
 		b.WriteString("\">\n")
 	}
-	_, err := io.WriteString(s.w, b.String())
-	return err
+	return s.writeEmissionString(b.String())
 }
 
 func (s *stream) writeCSS(b *strings.Builder) {
@@ -306,13 +311,13 @@ func (s *stream) writeRowBufferedTable(row mdf.TableRow) error {
 			return err
 		}
 		if s.tableRows[0].Header {
-			if _, err := io.WriteString(s.w, "<thead>"); err != nil {
+			if err := s.writeEmissionString("<thead>"); err != nil {
 				return err
 			}
 			if err := s.writeHTMLTableRow(s.tableRows[0], s.tableColumns); err != nil {
 				return err
 			}
-			if _, err := io.WriteString(s.w, "</thead><tbody>"); err != nil {
+			if err := s.writeEmissionString("</thead><tbody>"); err != nil {
 				return err
 			}
 			s.tableBodyOpen = true
@@ -320,7 +325,7 @@ func (s *stream) writeRowBufferedTable(row mdf.TableRow) error {
 				return err
 			}
 		} else {
-			if _, err := io.WriteString(s.w, "<tbody>"); err != nil {
+			if err := s.writeEmissionString("<tbody>"); err != nil {
 				return err
 			}
 			s.tableBodyOpen = true
@@ -334,7 +339,7 @@ func (s *stream) writeRowBufferedTable(row mdf.TableRow) error {
 		return nil
 	}
 	if !s.tableBodyOpen && !row.Header {
-		if _, err := io.WriteString(s.w, "<tbody>"); err != nil {
+		if err := s.writeEmissionString("<tbody>"); err != nil {
 			return err
 		}
 		s.tableBodyOpen = true
@@ -352,19 +357,19 @@ func (s *stream) writeFullTable(rows []mdf.TableRow) error {
 	s.tableColumns = htmlTableColumnCount(rows, s.tableStart.Alignments)
 	idx := 0
 	if rows[0].Header {
-		if _, err := io.WriteString(s.w, "<thead>"); err != nil {
+		if err := s.writeEmissionString("<thead>"); err != nil {
 			return err
 		}
 		if err := s.writeHTMLTableRow(rows[0], s.tableColumns); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(s.w, "</thead>"); err != nil {
+		if err := s.writeEmissionString("</thead>"); err != nil {
 			return err
 		}
 		idx = 1
 	}
 	if idx < len(rows) {
-		if _, err := io.WriteString(s.w, "<tbody>"); err != nil {
+		if err := s.writeEmissionString("<tbody>"); err != nil {
 			return err
 		}
 		s.tableBodyOpen = true
@@ -373,7 +378,7 @@ func (s *stream) writeFullTable(rows []mdf.TableRow) error {
 				return err
 			}
 		}
-		if _, err := io.WriteString(s.w, "</tbody>"); err != nil {
+		if err := s.writeEmissionString("</tbody>"); err != nil {
 			return err
 		}
 		s.tableBodyOpen = false
@@ -383,13 +388,13 @@ func (s *stream) writeFullTable(rows []mdf.TableRow) error {
 
 func (s *stream) openTable() error {
 	if len(s.tableStart.Prefix) > 0 {
-		if _, err := io.WriteString(s.w, `<div class="mdf-table-block"><span class="mdf-prefix">`); err != nil {
+		if err := s.writeEmissionString(`<div class="mdf-table-block"><span class="mdf-prefix">`); err != nil {
 			return err
 		}
 		if err := s.writeHTMLTablePrefix(s.tableStart.Prefix); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(s.w, `</span>`); err != nil {
+		if err := s.writeEmissionString(`</span>`); err != nil {
 			return err
 		}
 		s.tableWrapped = true
@@ -398,23 +403,23 @@ func (s *stream) openTable() error {
 	if s.cfg.TableWireMode == mdf.TableWireSpace {
 		class = "mdf-table mdf-table-space"
 	}
-	_, err := fmt.Fprintf(s.w, `<table class="%s">`, class)
-	if err == nil {
-		s.tableOpen = true
+	if err := s.writeEmissionString(fmt.Sprintf(`<table class="%s">`, class)); err != nil {
+		return err
 	}
-	return err
+	s.tableOpen = true
+	return nil
 }
 
 func (s *stream) writeHTMLTablePrefix(prefix []mdf.TablePrefixSegment) error {
 	for _, segment := range prefix {
 		style := s.styleFor(segment.Style)
 		if style == "" {
-			if _, err := io.WriteString(s.w, stdhtml.EscapeString(segment.Text)); err != nil {
+			if err := s.writeEmissionString(stdhtml.EscapeString(segment.Text)); err != nil {
 				return err
 			}
 			continue
 		}
-		if _, err := fmt.Fprintf(s.w, `<span style="%s">%s</span>`, stdhtml.EscapeString(style), stdhtml.EscapeString(segment.Text)); err != nil {
+		if err := s.writeEmissionString(fmt.Sprintf(`<span style="%s">%s</span>`, stdhtml.EscapeString(style), stdhtml.EscapeString(segment.Text))); err != nil {
 			return err
 		}
 	}
@@ -438,7 +443,7 @@ func htmlTableColumnCount(rows []mdf.TableRow, alignments []mdf.TableAlignment) 
 }
 
 func (s *stream) writeHTMLTableRow(row mdf.TableRow, cols int) error {
-	if _, err := io.WriteString(s.w, "<tr>"); err != nil {
+	if err := s.writeEmissionString("<tr>"); err != nil {
 		return err
 	}
 	tag := "td"
@@ -453,7 +458,7 @@ func (s *stream) writeHTMLTableRow(row mdf.TableRow, cols int) error {
 		if i < len(s.tableStart.Alignments) {
 			align = htmlTableAlign(s.tableStart.Alignments[i])
 		}
-		if _, err := fmt.Fprintf(s.w, `<%s style="text-align:%s;">`, tag, align); err != nil {
+		if err := s.writeEmissionString(fmt.Sprintf(`<%s style="text-align:%s;">`, tag, align)); err != nil {
 			return err
 		}
 		if i < len(row.Cells) {
@@ -462,7 +467,7 @@ func (s *stream) writeHTMLTableRow(row mdf.TableRow, cols int) error {
 			}
 			if len(s.tableStart.Alignments) == 0 && i == cols-1 {
 				for _, extra := range row.Cells[cols:] {
-					if _, err := io.WriteString(s.w, " | "); err != nil {
+					if err := s.writeEmissionString(" | "); err != nil {
 						return err
 					}
 					if err := s.writeHTMLTableCellContent(extra, row.Header); err != nil {
@@ -471,18 +476,16 @@ func (s *stream) writeHTMLTableRow(row mdf.TableRow, cols int) error {
 				}
 			}
 		}
-		if _, err := fmt.Fprintf(s.w, `</%s>`, tag); err != nil {
+		if err := s.writeEmissionString(fmt.Sprintf(`</%s>`, tag)); err != nil {
 			return err
 		}
 	}
-	_, err := io.WriteString(s.w, "</tr>")
-	return err
+	return s.writeEmissionString("</tr>")
 }
 
 func (s *stream) writeHTMLTableCellContent(cell mdf.TableCell, header bool) error {
 	if len(cell.Tokens) == 0 {
-		_, err := io.WriteString(s.w, stdhtml.EscapeString(cell.Text))
-		return err
+		return s.writeEmissionString(stdhtml.EscapeString(cell.Text))
 	}
 	currentStyle := ""
 	spanOpen := false
@@ -490,7 +493,7 @@ func (s *stream) writeHTMLTableCellContent(cell mdf.TableCell, header bool) erro
 		if !spanOpen {
 			return nil
 		}
-		if _, err := io.WriteString(s.w, "</span>"); err != nil {
+		if err := s.writeEmissionString("</span>"); err != nil {
 			return err
 		}
 		spanOpen = false
@@ -502,7 +505,7 @@ func (s *stream) writeHTMLTableCellContent(cell mdf.TableCell, header bool) erro
 			if err := closeSpan(); err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintf(s.w, `<a href="%s">`, stdhtml.EscapeString(tok.LinkURL)); err != nil {
+			if err := s.writeEmissionString(fmt.Sprintf(`<a href="%s">`, stdhtml.EscapeString(tok.LinkURL))); err != nil {
 				return err
 			}
 			continue
@@ -511,7 +514,7 @@ func (s *stream) writeHTMLTableCellContent(cell mdf.TableCell, header bool) erro
 			if err := closeSpan(); err != nil {
 				return err
 			}
-			if _, err := io.WriteString(s.w, "</a>"); err != nil {
+			if err := s.writeEmissionString("</a>"); err != nil {
 				return err
 			}
 			continue
@@ -525,14 +528,14 @@ func (s *stream) writeHTMLTableCellContent(cell mdf.TableCell, header bool) erro
 				return err
 			}
 			if styleAttr != "" {
-				if _, err := fmt.Fprintf(s.w, `<span style="%s">`, stdhtml.EscapeString(styleAttr)); err != nil {
+				if err := s.writeEmissionString(fmt.Sprintf(`<span style="%s">`, stdhtml.EscapeString(styleAttr))); err != nil {
 					return err
 				}
 				spanOpen = true
 				currentStyle = styleAttr
 			}
 		}
-		if _, err := io.WriteString(s.w, stdhtml.EscapeString(tok.Text)); err != nil {
+		if err := s.writeEmissionString(stdhtml.EscapeString(tok.Text)); err != nil {
 			return err
 		}
 	}
@@ -628,11 +631,11 @@ func (s *stream) openLink(url string) error {
 			return err
 		}
 	}
-	_, err := fmt.Fprintf(s.w, `<a href="%s">`, stdhtml.EscapeString(url))
-	if err == nil {
-		s.linkOpen = true
+	if err := s.writeEmissionString(fmt.Sprintf(`<a href="%s">`, stdhtml.EscapeString(url))); err != nil {
+		return err
 	}
-	return err
+	s.linkOpen = true
+	return nil
 }
 
 func (s *stream) closeLink() error {
@@ -642,11 +645,11 @@ func (s *stream) closeLink() error {
 	if err := s.closeSpan(); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, "</a>")
-	if err == nil {
-		s.linkOpen = false
+	if err := s.writeEmissionString("</a>"); err != nil {
+		return err
 	}
-	return err
+	s.linkOpen = false
+	return nil
 }
 
 func (s *stream) writeText(text string, style mdf.Style) error {
@@ -673,7 +676,10 @@ func (s *stream) writeTextSegment(text string, style mdf.Style) error {
 	if text == "" {
 		return nil
 	}
-	for _, r := range text {
+	for i, r := range text {
+		if !s.atLineStart && !s.headingActive && !s.headingOpen && len(s.lineProbe) == 0 {
+			return s.writeTextContent(text[i:], style)
+		}
 		if err := s.writeRune(r, style); err != nil {
 			return err
 		}
@@ -683,8 +689,7 @@ func (s *stream) writeTextSegment(text string, style mdf.Style) error {
 
 func (s *stream) writeRune(r rune, style mdf.Style) error {
 	if s.headingOpen {
-		_, err := io.WriteString(s.w, stdhtml.EscapeString(string(r)))
-		return err
+		return s.writeEmissionString(stdhtml.EscapeString(string(r)))
 	}
 	if s.atLineStart && !s.headingActive && r == '#' && s.headingLevel(style) > 0 {
 		s.headingStyle = style
@@ -707,11 +712,29 @@ func (s *stream) writeRune(r rune, style mdf.Style) error {
 	if err := s.openSpan(style); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, stdhtml.EscapeString(string(r)))
-	if err == nil && r != '\r' {
+	if err := s.writeEmissionString(stdhtml.EscapeString(string(r))); err != nil {
+		return err
+	}
+	if r != '\r' {
 		s.atLineStart = false
 	}
-	return err
+	return nil
+}
+
+func (s *stream) writeTextContent(text string, style mdf.Style) error {
+	if text == "" {
+		return nil
+	}
+	if err := s.openSpan(style); err != nil {
+		return err
+	}
+	if err := s.writeEmissionString(stdhtml.EscapeString(text)); err != nil {
+		return err
+	}
+	if text != "\r" {
+		s.atLineStart = false
+	}
+	return nil
 }
 
 func (s *stream) writeNewline() error {
@@ -735,11 +758,11 @@ func (s *stream) writeNewline() error {
 	if err := s.closeHangingLine(); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, "\n")
-	if err == nil {
-		s.atLineStart = true
+	if err := s.writeEmissionString("\n"); err != nil {
+		return err
 	}
-	return err
+	s.atLineStart = true
+	return nil
 }
 
 func (s *stream) openHeading(marker string, style mdf.Style) error {
@@ -748,12 +771,10 @@ func (s *stream) openHeading(marker string, style mdf.Style) error {
 	}
 	attr := s.styleFor(style)
 	attr += "--mdf-heading-indent:" + formatFloat(float64(len(marker))) + "ch;"
-	_, err := fmt.Fprintf(s.w, `<span class="mdf-heading" style="%s">`, stdhtml.EscapeString(attr))
-	if err != nil {
+	if err := s.writeEmissionString(fmt.Sprintf(`<span class="mdf-heading" style="%s">`, stdhtml.EscapeString(attr))); err != nil {
 		return err
 	}
-	_, err = io.WriteString(s.w, stdhtml.EscapeString(marker))
-	if err != nil {
+	if err := s.writeEmissionString(stdhtml.EscapeString(marker)); err != nil {
 		return err
 	}
 	s.headingOpen = true
@@ -768,11 +789,11 @@ func (s *stream) closeHeading() error {
 	if !s.headingOpen {
 		return nil
 	}
-	_, err := io.WriteString(s.w, "</span>")
-	if err == nil {
-		s.headingOpen = false
+	if err := s.writeEmissionString("</span>"); err != nil {
+		return err
 	}
-	return err
+	s.headingOpen = false
+	return nil
 }
 
 func (s *stream) writeLineStartRune(r rune, style mdf.Style) error {
@@ -822,7 +843,7 @@ func (s *stream) openPrefixedLine(probe []styledRune, prefixLen int) error {
 	if err := s.closeSpan(); err != nil {
 		return err
 	}
-	if _, err := io.WriteString(s.w, `<span class="mdf-line"><span class="mdf-prefix">`); err != nil {
+	if err := s.writeEmissionString(`<span class="mdf-line"><span class="mdf-prefix">`); err != nil {
 		return err
 	}
 	for i, item := range probe {
@@ -830,7 +851,7 @@ func (s *stream) openPrefixedLine(probe []styledRune, prefixLen int) error {
 			if err := s.closeSpan(); err != nil {
 				return err
 			}
-			if _, err := io.WriteString(s.w, `</span><span class="mdf-content">`); err != nil {
+			if err := s.writeEmissionString(`</span><span class="mdf-content">`); err != nil {
 				return err
 			}
 			s.lineOpen = true
@@ -843,7 +864,7 @@ func (s *stream) openPrefixedLine(probe []styledRune, prefixLen int) error {
 		if err := s.closeSpan(); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(s.w, `</span><span class="mdf-content">`); err != nil {
+		if err := s.writeEmissionString(`</span><span class="mdf-content">`); err != nil {
 			return err
 		}
 		s.lineOpen = true
@@ -858,19 +879,18 @@ func (s *stream) closeHangingLine() error {
 	if err := s.closeSpan(); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, "</span></span>")
-	if err == nil {
-		s.lineOpen = false
+	if err := s.writeEmissionString("</span></span>"); err != nil {
+		return err
 	}
-	return err
+	s.lineOpen = false
+	return nil
 }
 
 func (s *stream) writeStyledRune(item styledRune) error {
 	if err := s.openSpan(item.style); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, stdhtml.EscapeString(string(item.r)))
-	return err
+	return s.writeEmissionString(stdhtml.EscapeString(string(item.r)))
 }
 
 func (s *stream) flushHeadingProbe(style mdf.Style) error {
@@ -884,11 +904,11 @@ func (s *stream) flushHeadingProbe(style mdf.Style) error {
 	if err := s.openSpan(style); err != nil {
 		return err
 	}
-	_, err := io.WriteString(s.w, stdhtml.EscapeString(text))
-	if err == nil {
-		s.atLineStart = false
+	if err := s.writeEmissionString(stdhtml.EscapeString(text)); err != nil {
+		return err
 	}
-	return err
+	s.atLineStart = false
+	return nil
 }
 
 func isHeadingMarkerProbe(text string) bool {
@@ -1041,24 +1061,75 @@ func (s *stream) openSpan(style mdf.Style) error {
 	if styleAttr == "" {
 		return nil
 	}
-	_, err := fmt.Fprintf(s.w, `<span style="%s">`, stdhtml.EscapeString(styleAttr))
-	if err == nil {
-		s.spanOpen = true
-		s.currentStyle = styleAttr
+	if err := s.writeEmissionString(fmt.Sprintf(`<span style="%s">`, stdhtml.EscapeString(styleAttr))); err != nil {
+		return err
 	}
-	return err
+	s.spanOpen = true
+	s.currentStyle = styleAttr
+	return nil
 }
 
 func (s *stream) closeSpan() error {
 	if !s.spanOpen {
 		return nil
 	}
-	_, err := io.WriteString(s.w, "</span>")
-	if err == nil {
-		s.spanOpen = false
-		s.currentStyle = ""
+	if err := s.writeEmissionString("</span>"); err != nil {
+		return err
+	}
+	s.spanOpen = false
+	s.currentStyle = ""
+	return nil
+}
+
+func (s *stream) writeEmissionString(text string) error {
+	if text == "" {
+		return nil
+	}
+	n, err := io.WriteString(s.w, text)
+	if n > 0 && s.trace != nil {
+		if traceErr := s.traceHTMLString(text[:n]); traceErr != nil && err == nil {
+			return traceErr
+		}
 	}
 	return err
+}
+
+func (s *stream) traceHTMLString(text string) error {
+	if text == "" {
+		return nil
+	}
+	if !isHTMLTextTracePayload(text) {
+		if err := s.flushTraceText(); err != nil {
+			return err
+		}
+		return s.trace.EmitString(text)
+	}
+	for _, r := range text {
+		if r == ' ' || r == '\t' {
+			if err := s.flushTraceText(); err != nil {
+				return err
+			}
+			if err := s.trace.EmitString(string(r)); err != nil {
+				return err
+			}
+			continue
+		}
+		s.traceText.WriteRune(r)
+	}
+	return nil
+}
+
+func (s *stream) flushTraceText() error {
+	if s.trace == nil || s.traceText.Len() == 0 {
+		return nil
+	}
+	text := s.traceText.String()
+	s.traceText.Reset()
+	return s.trace.EmitString(text)
+}
+
+func isHTMLTextTracePayload(text string) bool {
+	return !strings.ContainsAny(text, "<>\n\r")
 }
 
 func (s *stream) styleFor(style mdf.Style) string {

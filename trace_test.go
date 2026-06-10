@@ -25,148 +25,31 @@ func (e *captureTraceEncoder) EncodeWriteTraceEvent(event WriteTraceEvent) error
 	return nil
 }
 
-type shortWriteSink struct {
-	buf bytes.Buffer
-	n   int
-	err error
-}
-
-func (s *shortWriteSink) Write(p []byte) (int, error) {
-	n := s.n
-	if n > len(p) {
-		n = len(p)
-	}
-	_, _ = s.buf.Write(p[:n])
-	return n, s.err
-}
-
-func TestWriteTraceWriterRecordsEachAcceptedSinkWrite(t *testing.T) {
-	var sink bytes.Buffer
+func TestWriteTraceEmitterRecordsEmissions(t *testing.T) {
 	trace := &captureTraceEncoder{}
-	writer := NewWriteTraceWriter(&sink, trace)
+	emitter := NewWriteTraceEmitter(WriteTraceFormatANSI, trace)
 
-	if _, err := writer.Write([]byte("hello")); err != nil {
-		t.Fatalf("write hello: %v", err)
+	if err := emitter.EmitString("\x1b[1mhello"); err != nil {
+		t.Fatalf("emit first: %v", err)
 	}
-	if _, err := writer.Write([]byte("\n")); err != nil {
-		t.Fatalf("write newline: %v", err)
+	if err := emitter.EmitString("\x1b[0m\n"); err != nil {
+		t.Fatalf("emit second: %v", err)
 	}
 
-	if got, want := sink.String(), "hello\n"; got != want {
-		t.Fatalf("sink output got %q want %q", got, want)
-	}
 	if got, want := len(trace.events), 2; got != want {
 		t.Fatalf("trace event count got %d want %d", got, want)
 	}
-	assertTraceEvent(t, trace.events[0], 1, "hello")
-	assertTraceEvent(t, trace.events[1], 2, "\n")
+	assertTraceEvent(t, trace.events[0], 1, WriteTraceFormatANSI, "\x1b[1mhello")
+	assertTraceEvent(t, trace.events[1], 2, WriteTraceFormatANSI, "\x1b[0m\n")
 }
 
-func TestWriteTraceWriterRecordsOnlyAcceptedPrefixOnPartialWrite(t *testing.T) {
-	sinkErr := io.ErrShortWrite
-	sink := &shortWriteSink{n: 2, err: sinkErr}
-	trace := &captureTraceEncoder{}
-	writer := NewWriteTraceWriter(sink, trace)
-
-	n, err := writer.Write([]byte("hello"))
-	if !errors.Is(err, sinkErr) {
-		t.Fatalf("write error got %v want %v", err, sinkErr)
-	}
-	if n != 2 {
-		t.Fatalf("write count got %d want 2", n)
-	}
-	if got, want := sink.buf.String(), "he"; got != want {
-		t.Fatalf("sink output got %q want %q", got, want)
-	}
-	if got, want := len(trace.events), 1; got != want {
-		t.Fatalf("trace event count got %d want %d", got, want)
-	}
-	assertTraceEvent(t, trace.events[0], 1, "he")
-}
-
-func TestWriteTraceWriterDoesNotTraceZeroByteFailedWrite(t *testing.T) {
-	sinkErr := io.ErrClosedPipe
-	sink := &shortWriteSink{n: 0, err: sinkErr}
-	trace := &captureTraceEncoder{}
-	writer := NewWriteTraceWriter(sink, trace)
-
-	n, err := writer.Write([]byte("hello"))
-	if !errors.Is(err, sinkErr) {
-		t.Fatalf("write error got %v want %v", err, sinkErr)
-	}
-	if n != 0 {
-		t.Fatalf("write count got %d want 0", n)
-	}
-	if len(trace.events) != 0 {
-		t.Fatalf("zero-byte failed write must not emit trace events")
-	}
-}
-
-func TestWriteTraceWriterReturnsTraceErrorAfterSinkAcceptsBytes(t *testing.T) {
-	var sink bytes.Buffer
+func TestWriteTraceEmitterReturnsTraceError(t *testing.T) {
 	traceErr := errors.New("trace failed")
-	writer := NewWriteTraceWriter(&sink, &captureTraceEncoder{err: traceErr})
+	emitter := NewWriteTraceEmitter(WriteTraceFormatANSI, &captureTraceEncoder{err: traceErr})
 
-	n, err := writer.Write([]byte("hello"))
-	if n != 5 {
-		t.Fatalf("write count got %d want 5", n)
-	}
+	err := emitter.EmitString("hello")
 	if !errors.Is(err, traceErr) {
-		t.Fatalf("write error got %v want trace error", err)
-	}
-	if got, want := sink.String(), "hello"; got != want {
-		t.Fatalf("sink output got %q want %q", got, want)
-	}
-}
-
-func TestWriteTraceWriterPreservesSinkAndTraceErrors(t *testing.T) {
-	sinkErr := io.ErrShortWrite
-	traceErr := errors.New("trace failed")
-	sink := &shortWriteSink{n: 2, err: sinkErr}
-	writer := NewWriteTraceWriter(sink, &captureTraceEncoder{err: traceErr})
-
-	n, err := writer.Write([]byte("hello"))
-	if n != 2 {
-		t.Fatalf("write count got %d want 2", n)
-	}
-	if !errors.Is(err, sinkErr) {
-		t.Fatalf("write error got %v, want sink error", err)
-	}
-	if !errors.Is(err, traceErr) {
-		t.Fatalf("write error got %v, want trace error", err)
-	}
-	if got, want := sink.buf.String(), "he"; got != want {
-		t.Fatalf("sink output got %q want %q", got, want)
-	}
-}
-
-func TestWriteTraceWriterHandlesNilTraceAsPassThrough(t *testing.T) {
-	var sink bytes.Buffer
-	writer := NewWriteTraceWriter(&sink, nil)
-
-	n, err := writer.Write([]byte("hello"))
-	if err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	if n != 5 {
-		t.Fatalf("write count got %d want 5", n)
-	}
-	if got, want := sink.String(), "hello"; got != want {
-		t.Fatalf("sink output got %q want %q", got, want)
-	}
-}
-
-func TestWriteTraceWriterRejectsNilSink(t *testing.T) {
-	trace := &captureTraceEncoder{}
-	n, err := NewWriteTraceWriter(nil, trace).Write([]byte("hello"))
-	if err == nil {
-		t.Fatalf("expected nil sink error")
-	}
-	if n != 0 {
-		t.Fatalf("write count got %d want 0", n)
-	}
-	if len(trace.events) != 0 {
-		t.Fatalf("nil sink must not emit trace events")
+		t.Fatalf("emit error got %v want trace error", err)
 	}
 }
 
@@ -175,7 +58,8 @@ func TestNDJSONWriteTraceEncoder(t *testing.T) {
 	encoder := NewNDJSONWriteTraceEncoder(&out)
 	event := WriteTraceEvent{
 		Seq:     7,
-		Op:      "write",
+		Format:  WriteTraceFormatANSI,
+		Op:      "emit",
 		Bytes:   3,
 		DataB64: base64.StdEncoding.EncodeToString([]byte{0, '\n', 255}),
 	}
@@ -196,7 +80,7 @@ func TestNDJSONWriteTraceEncoder(t *testing.T) {
 
 func TestNDJSONWriteTraceEncoderRejectsNilWriter(t *testing.T) {
 	encoder := NewNDJSONWriteTraceEncoder(nil)
-	err := encoder.EncodeWriteTraceEvent(WriteTraceEvent{Seq: 1, Op: "write"})
+	err := encoder.EncodeWriteTraceEvent(WriteTraceEvent{Seq: 1, Op: "emit"})
 	if err == nil {
 		t.Fatalf("expected nil writer error")
 	}
@@ -219,12 +103,12 @@ func TestRenderWriteTraceReconstructsExactANSIOutput(t *testing.T) {
 
 	var tracedOut bytes.Buffer
 	var traceData bytes.Buffer
-	tracedWriter := NewWriteTraceWriter(&tracedOut, NewNDJSONWriteTraceEncoder(&traceData))
 	if err := Render(RenderRequest{
-		Reader: strings.NewReader(src),
-		Writer: tracedWriter,
-		Width:  40,
-		Theme:  DefaultTheme(),
+		Reader:  strings.NewReader(src),
+		Writer:  &tracedOut,
+		Width:   40,
+		Theme:   DefaultTheme(),
+		Options: []RenderOption{WithWriteTrace(NewNDJSONWriteTraceEncoder(&traceData))},
 	}); err != nil {
 		t.Fatalf("render traced: %v", err)
 	}
@@ -243,8 +127,46 @@ func TestRenderWriteTraceReconstructsExactANSIOutput(t *testing.T) {
 		if event.Seq != uint64(i+1) {
 			t.Fatalf("event %d sequence got %d want %d", i, event.Seq, i+1)
 		}
-		if event.Op != "write" {
-			t.Fatalf("event %d op got %q want write", i, event.Op)
+		if event.Format != WriteTraceFormatANSI {
+			t.Fatalf("event %d format got %q want ansi", i, event.Format)
+		}
+		if event.Op != "emit" {
+			t.Fatalf("event %d op got %q want emit", i, event.Op)
+		}
+	}
+}
+
+func TestRenderWriteTraceRecordsWordEmissionsNotSinkWrites(t *testing.T) {
+	src := `> **"Governance exists to support autonomy"** does **not** imply` + "\n"
+	trace := &captureTraceEncoder{}
+	var out bytes.Buffer
+	if err := Render(RenderRequest{
+		Reader:  strings.NewReader(src),
+		Writer:  &out,
+		Width:   80,
+		Theme:   DefaultTheme(),
+		Options: []RenderOption{WithWriteTrace(trace)},
+	}); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	var visible []string
+	for _, event := range trace.events {
+		text := stripANSITracePayload(tracePayload(t, event))
+		text = strings.TrimSpace(text)
+		if text != "" {
+			visible = append(visible, text)
+		}
+	}
+	joined := "\n" + strings.Join(visible, "\n") + "\n"
+	for _, want := range []string{`"Governance`, "exists", "to", "support", `autonomy"`} {
+		if !strings.Contains(joined, "\n"+want+"\n") {
+			t.Fatalf("missing word emission %q in visible trace chunks:\n%s", want, strings.Join(visible, "\n"))
+		}
+	}
+	for _, got := range visible {
+		if len([]rune(got)) == 1 && strings.Contains(`Governanceexiststosupportautonomy`, got) {
+			t.Fatalf("trace contains character-sized content emission %q in chunks:\n%s", got, strings.Join(visible, "\n"))
 		}
 	}
 }
@@ -256,10 +178,11 @@ func TestRenderWriteTraceEmitsBeforeInputEOF(t *testing.T) {
 
 	go func() {
 		errs <- Render(RenderRequest{
-			Reader: reader,
-			Writer: NewWriteTraceWriter(io.Discard, channelTraceEncoder{events: events}),
-			Width:  80,
-			Theme:  DefaultTheme(),
+			Reader:  reader,
+			Writer:  io.Discard,
+			Width:   80,
+			Theme:   DefaultTheme(),
+			Options: []RenderOption{WithWriteTrace(channelTraceEncoder{events: events})},
 		})
 	}()
 
@@ -268,14 +191,10 @@ func TestRenderWriteTraceEmitsBeforeInputEOF(t *testing.T) {
 	}
 	deadline := time.After(time.Second)
 	var traced bytes.Buffer
-	for !strings.Contains(traced.String(), "hello") {
+	for !strings.Contains(stripANSITracePayload(traced.String()), "hello") {
 		select {
 		case event := <-events:
-			data, err := base64.StdEncoding.DecodeString(event.DataB64)
-			if err != nil {
-				t.Fatalf("decode event %d: %v", event.Seq, err)
-			}
-			traced.Write(data)
+			traced.WriteString(tracePayload(t, event))
 		case err := <-errs:
 			t.Fatalf("render returned before EOF: %v", err)
 		case <-deadline:
@@ -308,23 +227,22 @@ func (e channelTraceEncoder) EncodeWriteTraceEvent(event WriteTraceEvent) error 
 	return nil
 }
 
-func assertTraceEvent(t *testing.T, event WriteTraceEvent, seq uint64, payload string) {
+func assertTraceEvent(t *testing.T, event WriteTraceEvent, seq uint64, format string, payload string) {
 	t.Helper()
 	if event.Seq != seq {
 		t.Fatalf("sequence got %d want %d", event.Seq, seq)
 	}
-	if event.Op != "write" {
-		t.Fatalf("op got %q want write", event.Op)
+	if event.Format != format {
+		t.Fatalf("format got %q want %q", event.Format, format)
+	}
+	if event.Op != "emit" {
+		t.Fatalf("op got %q want emit", event.Op)
 	}
 	if event.Bytes != len(payload) {
 		t.Fatalf("bytes got %d want %d", event.Bytes, len(payload))
 	}
-	data, err := base64.StdEncoding.DecodeString(event.DataB64)
-	if err != nil {
-		t.Fatalf("decode payload: %v", err)
-	}
-	if string(data) != payload {
-		t.Fatalf("payload got %q want %q", string(data), payload)
+	if got := tracePayload(t, event); got != payload {
+		t.Fatalf("payload got %q want %q", got, payload)
 	}
 }
 
@@ -349,28 +267,55 @@ func reconstructTracePayload(t *testing.T, events []WriteTraceEvent) string {
 	t.Helper()
 	var out bytes.Buffer
 	for _, event := range events {
-		data, err := base64.StdEncoding.DecodeString(event.DataB64)
-		if err != nil {
-			t.Fatalf("decode event %d: %v", event.Seq, err)
-		}
+		data := tracePayload(t, event)
 		if len(data) != event.Bytes {
 			t.Fatalf("event %d decoded bytes got %d want %d", event.Seq, len(data), event.Bytes)
 		}
-		if _, err := out.Write(data); err != nil {
+		if _, err := out.WriteString(data); err != nil {
 			t.Fatalf("write reconstructed event %d: %v", event.Seq, err)
 		}
 	}
 	return out.String()
 }
 
-func ExampleNewWriteTraceWriter() {
-	var rendered bytes.Buffer
+func tracePayload(t *testing.T, event WriteTraceEvent) string {
+	t.Helper()
+	data, err := base64.StdEncoding.DecodeString(event.DataB64)
+	if err != nil {
+		t.Fatalf("decode event %d: %v", event.Seq, err)
+	}
+	return string(data)
+}
+
+func stripANSITracePayload(text string) string {
+	var b strings.Builder
+	for i := 0; i < len(text); i++ {
+		if text[i] != 0x1b {
+			b.WriteByte(text[i])
+			continue
+		}
+		i++
+		if i >= len(text) {
+			break
+		}
+		if text[i] == '[' {
+			for i++; i < len(text) && (text[i] < '@' || text[i] > '~'); i++ {
+			}
+			continue
+		}
+		for i < len(text) && text[i] != '\\' && text[i] != 0x07 {
+			i++
+		}
+	}
+	return b.String()
+}
+
+func ExampleWriteTraceEmitter() {
 	var trace bytes.Buffer
-	writer := NewWriteTraceWriter(&rendered, NewNDJSONWriteTraceEncoder(&trace))
+	emitter := NewWriteTraceEmitter(WriteTraceFormatANSI, NewNDJSONWriteTraceEncoder(&trace))
+	_ = emitter.EmitString("hi")
 
-	_, _ = writer.Write([]byte("hi"))
-
-	fmt.Print(rendered.String())
+	fmt.Print(strings.Contains(trace.String(), `"op":"emit"`))
 	// Output:
-	// hi
+	// true
 }

@@ -17,6 +17,8 @@ require (
 )
 
 retract (
+	// --trace-writes recorded low-level sink writes instead of renderer emissions.
+	v0.7.0
 	// Streaming table lookahead regressed minimum normal paragraph emission.
 	[v0.4.0, v0.5.0]
 	v0.0.2

@@ -77,6 +77,78 @@ func TestRenderSampledataParity(t *testing.T) {
 	}
 }
 
+func TestRenderSampledataTraceParity(t *testing.T) {
+	const width = 80
+	root := "testdata"
+	paths, err := traceGoldenMarkdownPaths(root)
+	if err != nil {
+		t.Fatalf("collect trace golden inputs: %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatalf("no markdown files found under %s", root)
+	}
+	for _, path := range paths {
+		path := path
+		t.Run(path, func(t *testing.T) {
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+			goldenPath := goldenTracePath(path, width)
+			want, err := os.ReadFile(goldenPath)
+			if err != nil {
+				t.Fatalf("read trace golden %s: %v", goldenPath, err)
+			}
+
+			var out bytes.Buffer
+			var trace bytes.Buffer
+			err = Render(RenderRequest{
+				Reader:  bytes.NewReader(src),
+				Writer:  &out,
+				Width:   width,
+				Theme:   DefaultTheme(),
+				Options: []RenderOption{WithWriteTrace(NewNDJSONWriteTraceEncoder(&trace))},
+			})
+			if err != nil {
+				t.Fatalf("stream trace %s width %d: %v", path, width, err)
+			}
+			if string(want) != trace.String() {
+				diff := firstDiffContext(string(want), trace.String(), 3)
+				t.Fatalf("trace parity mismatch %s width %d\n%s", path, width, diff)
+			}
+			events := decodeTraceEvents(t, trace.Bytes())
+			if got := reconstructTracePayload(t, events); got != out.String() {
+				diff := firstDiffContext(out.String(), got, 3)
+				t.Fatalf("trace replay mismatch %s width %d\n%s", path, width, diff)
+			}
+		})
+	}
+}
+
+func traceGoldenMarkdownPaths(root string) ([]string, error) {
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			if filepath.ToSlash(path) == "testdata/future" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".md") {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
 func goldenWidthsForFile(root string, mdPath string) ([]int, error) {
 	rel, err := filepath.Rel(root, mdPath)
 	if err != nil {
@@ -125,6 +197,16 @@ func goldenStreamPath(mdPath string, width int) string {
 	name := strings.TrimSuffix(rel, ".md")
 	name = strings.ReplaceAll(filepath.ToSlash(name), "/", "__")
 	return filepath.Join("testdata", fmt.Sprintf("%s.w%d.golden", name, width))
+}
+
+func goldenTracePath(mdPath string, width int) string {
+	rel, err := filepath.Rel("testdata", mdPath)
+	if err != nil {
+		rel = mdPath
+	}
+	name := strings.TrimSuffix(rel, ".md")
+	name = strings.ReplaceAll(filepath.ToSlash(name), "/", "__")
+	return filepath.Join("testdata", fmt.Sprintf("%s.w%d.trace.ndjson", name, width))
 }
 
 func firstDiffContext(want string, got string, ctx int) string {

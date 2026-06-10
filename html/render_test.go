@@ -2,11 +2,21 @@ package html
 
 import (
 	"bytes"
+	"encoding/base64"
 	"strings"
 	"testing"
 
 	"pkt.systems/mdf"
 )
+
+type captureTraceEncoder struct {
+	events []mdf.WriteTraceEvent
+}
+
+func (e *captureTraceEncoder) EncodeWriteTraceEvent(event mdf.WriteTraceEvent) error {
+	e.events = append(e.events, event)
+	return nil
+}
 
 func TestRenderWritesSelfContainedHTML(t *testing.T) {
 	var out bytes.Buffer
@@ -48,6 +58,46 @@ func TestRenderWritesSelfContainedHTML(t *testing.T) {
 	}
 	if strings.Contains(rendered, "<script") {
 		t.Fatalf("unexpected script tag in rendered HTML")
+	}
+}
+
+func TestRenderWriteTraceReconstructsExactHTML(t *testing.T) {
+	var out bytes.Buffer
+	trace := &captureTraceEncoder{}
+	err := Render(RenderRequest{
+		Reader: strings.NewReader("Hello **world**.\n"),
+		Writer: &out,
+		Theme:  mdf.DefaultTheme(),
+		Trace:  trace,
+	})
+	if err != nil {
+		t.Fatalf("render html: %v", err)
+	}
+	if len(trace.events) < 2 {
+		t.Fatalf("expected multiple trace events, got %d", len(trace.events))
+	}
+	var reconstructed bytes.Buffer
+	for i, event := range trace.events {
+		if event.Seq != uint64(i+1) {
+			t.Fatalf("event %d sequence got %d want %d", i, event.Seq, i+1)
+		}
+		if event.Format != mdf.WriteTraceFormatHTML {
+			t.Fatalf("event %d format got %q want html", i, event.Format)
+		}
+		if event.Op != "emit" {
+			t.Fatalf("event %d op got %q want emit", i, event.Op)
+		}
+		data, err := base64.StdEncoding.DecodeString(event.DataB64)
+		if err != nil {
+			t.Fatalf("decode event %d: %v", event.Seq, err)
+		}
+		if len(data) != event.Bytes {
+			t.Fatalf("event %d bytes got %d want %d", event.Seq, len(data), event.Bytes)
+		}
+		reconstructed.Write(data)
+	}
+	if reconstructed.String() != out.String() {
+		t.Fatalf("reconstructed trace does not match HTML output")
 	}
 }
 

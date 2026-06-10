@@ -21,6 +21,8 @@ type RenderRequest struct {
 	Theme mdf.Theme
 	// Config controls HTML layout, fonts, colors, images, and tables.
 	Config Config
+	// Trace receives renderer emission trace events.
+	Trace mdf.WriteTraceEncoder
 }
 
 // Render converts Markdown to a self-contained themed HTML document.
@@ -57,7 +59,7 @@ func Render(req RenderRequest) error {
 	if theme == nil {
 		theme = mdf.DefaultTheme()
 	}
-	stream := newStream(req.Writer, cfg, theme.Styles(), cornerImage)
+	stream := newStream(req.Writer, cfg, theme.Styles(), cornerImage, req.Trace)
 	if err := stream.writeDocumentStart(); err != nil {
 		return fmt.Errorf("html render: %w", err)
 	}

@@ -8,6 +8,7 @@ type renderConfig struct {
 	softWrap        bool
 	tableBufferMode TableBufferMode
 	tableWireMode   TableWireMode
+	writeTrace      WriteTraceEncoder
 }
 
 // WithOSC8 enables or disables OSC 8 hyperlinks.
@@ -37,6 +38,13 @@ func WithTableBufferMode(mode TableBufferMode) RenderOption {
 func WithTableWireMode(mode TableWireMode) RenderOption {
 	return func(cfg *renderConfig) {
 		cfg.tableWireMode = mode
+	}
+}
+
+// WithWriteTrace configures renderer emission tracing.
+func WithWriteTrace(trace WriteTraceEncoder) RenderOption {
+	return func(cfg *renderConfig) {
+		cfg.writeTrace = trace
 	}
 }
 

@@ -65,7 +65,7 @@ func TestOpenInputFileAndURL(t *testing.T) {
 
 func TestRenderHTML(t *testing.T) {
 	var out bytes.Buffer
-	err := renderHTML(strings.NewReader("# Title\n\nBody\n"), &out, nil, false, pdfConfig{
+	err := renderHTML(strings.NewReader("# Title\n\nBody\n"), &out, nil, false, nil, pdfConfig{
 		margin:           24,
 		htmlContentWidth: 72,
 		fontSize:         10,
@@ -96,7 +96,7 @@ func TestRenderHTML(t *testing.T) {
 
 func TestRenderHTMLCanOptIntoEmbeddedHackFont(t *testing.T) {
 	var out bytes.Buffer
-	err := renderHTML(strings.NewReader("Body\n"), &out, nil, false, pdfConfig{
+	err := renderHTML(strings.NewReader("Body\n"), &out, nil, false, nil, pdfConfig{
 		htmlEmbeddedFont: "hack",
 	})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestRenderHTMLCanOptIntoEmbeddedHackFont(t *testing.T) {
 
 func TestRenderHTMLRejectsUnknownEmbeddedFont(t *testing.T) {
 	var out bytes.Buffer
-	err := renderHTML(strings.NewReader("Body\n"), &out, nil, false, pdfConfig{
+	err := renderHTML(strings.NewReader("Body\n"), &out, nil, false, nil, pdfConfig{
 		htmlEmbeddedFont: "unknown",
 	})
 	if err == nil {
@@ -230,66 +230,53 @@ func TestValidateTableWireForModeAllowsHTMLLineAndSpace(t *testing.T) {
 	}
 }
 
-func TestValidateTraceWritesForModeRejectsNonANSI(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		pdfMode  bool
-		htmlMode bool
-	}{
-		{name: "pdf", pdfMode: true},
-		{name: "html", htmlMode: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := validateTraceWritesForMode("trace.ndjson", tc.pdfMode, tc.htmlMode)
-			if err == nil {
-				t.Fatalf("expected trace mode rejection")
-			}
-			if !strings.Contains(err.Error(), "--trace-writes is only supported for ANSI output") {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
+func TestValidateTraceWritesForModeRejectsPDF(t *testing.T) {
+	err := validateTraceWritesForMode("trace.ndjson", true, false)
+	if err == nil {
+		t.Fatalf("expected trace mode rejection")
+	}
+	if !strings.Contains(err.Error(), "--trace-writes is only supported for ANSI and HTML output") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := validateTraceWritesForMode("trace.ndjson", false, false); err != nil {
 		t.Fatalf("expected ANSI trace mode to be allowed: %v", err)
+	}
+	if err := validateTraceWritesForMode("trace.ndjson", false, true); err != nil {
+		t.Fatalf("expected HTML trace mode to be allowed: %v", err)
 	}
 	if err := validateTraceWritesForMode("", true, true); err != nil {
 		t.Fatalf("expected disabled trace mode to be allowed: %v", err)
 	}
 }
 
-func TestConfigureWriteTraceDashWritesEventsToStderr(t *testing.T) {
-	var sink bytes.Buffer
+func TestOpenWriteTraceDashWritesEventsToStderr(t *testing.T) {
 	var stderr bytes.Buffer
-	writer, closer, err := configureWriteTrace(&sink, "-", "", &stderr)
+	encoder, closer, err := openWriteTrace("-", &stderr)
 	if err != nil {
-		t.Fatalf("configure trace: %v", err)
+		t.Fatalf("open trace: %v", err)
 	}
 	if closer != nil {
 		t.Fatalf("stderr trace should not return closer")
 	}
-	if _, err := writer.Write([]byte("hello")); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	if got, want := sink.String(), "hello"; got != want {
-		t.Fatalf("sink got %q want %q", got, want)
+	if err := mdf.NewWriteTraceEmitter(mdf.WriteTraceFormatANSI, encoder).EmitString("hello"); err != nil {
+		t.Fatalf("emit trace: %v", err)
 	}
 	event := decodeCLITraceEvent(t, stderr.Bytes())
-	assertCLITraceEvent(t, event, 1, "hello")
+	assertCLITraceEvent(t, event, 1, mdf.WriteTraceFormatANSI, "hello")
 }
 
-func TestConfigureWriteTracePathWritesEventsToFile(t *testing.T) {
+func TestOpenWriteTracePathWritesEventsToFile(t *testing.T) {
 	dir := t.TempDir()
 	tracePath := filepath.Join(dir, "trace", "writes.ndjson")
-	var sink bytes.Buffer
-	writer, closer, err := configureWriteTrace(&sink, tracePath, "", io.Discard)
+	encoder, closer, err := openWriteTrace(tracePath, io.Discard)
 	if err != nil {
-		t.Fatalf("configure trace: %v", err)
+		t.Fatalf("open trace: %v", err)
 	}
 	if closer == nil {
 		t.Fatalf("file trace should return closer")
 	}
-	if _, err := writer.Write([]byte("hello")); err != nil {
-		t.Fatalf("write: %v", err)
+	if err := mdf.NewWriteTraceEmitter(mdf.WriteTraceFormatHTML, encoder).EmitString("hello"); err != nil {
+		t.Fatalf("emit trace: %v", err)
 	}
 	if err := closer.Close(); err != nil {
 		t.Fatalf("close trace: %v", err)
@@ -299,7 +286,7 @@ func TestConfigureWriteTracePathWritesEventsToFile(t *testing.T) {
 		t.Fatalf("read trace: %v", err)
 	}
 	event := decodeCLITraceEvent(t, data)
-	assertCLITraceEvent(t, event, 1, "hello")
+	assertCLITraceEvent(t, event, 1, mdf.WriteTraceFormatHTML, "hello")
 }
 
 func TestConfigureWriteTraceRejectsOutputPath(t *testing.T) {
@@ -325,7 +312,7 @@ func TestConfigureOutputRejectsTraceOutputAbsoluteAliasBeforeTruncatingOutput(t 
 		t.Fatalf("abs output path: %v", err)
 	}
 
-	_, _, _, err = configureOutput(outPath, absOut, io.Discard)
+	_, _, _, _, err = configureOutput(outPath, absOut, io.Discard)
 	if err == nil {
 		t.Fatalf("expected absolute alias rejection")
 	}
@@ -344,7 +331,7 @@ func TestConfigureOutputRejectsTraceOutputSymlinkAliasBeforeTruncatingOutput(t *
 		t.Skipf("symlink unavailable: %v", err)
 	}
 
-	_, _, _, err := configureOutput(outPath, tracePath, io.Discard)
+	_, _, _, _, err := configureOutput(outPath, tracePath, io.Discard)
 	if err == nil {
 		t.Fatalf("expected symlink alias rejection")
 	}
@@ -363,7 +350,7 @@ func TestConfigureOutputRejectsTraceOutputHardLinkAliasBeforeTruncatingOutput(t 
 		t.Skipf("hard link unavailable: %v", err)
 	}
 
-	_, _, _, err := configureOutput(outPath, tracePath, io.Discard)
+	_, _, _, _, err := configureOutput(outPath, tracePath, io.Discard)
 	if err == nil {
 		t.Fatalf("expected hard link alias rejection")
 	}
@@ -377,7 +364,7 @@ func TestConfigureOutputRejectsTraceOutputPathBeforeTruncatingOutput(t *testing.
 		t.Fatalf("write existing output: %v", err)
 	}
 
-	_, _, _, err := configureOutput(path, path, io.Discard)
+	_, _, _, _, err := configureOutput(path, path, io.Discard)
 	if err == nil {
 		t.Fatalf("expected same trace and output path rejection")
 	}
@@ -400,7 +387,7 @@ func TestConfigureOutputRejectsInvalidTracePathBeforeTruncatingOutput(t *testing
 	}
 	tracePath := filepath.Join(traceParent, "writes.ndjson")
 
-	_, _, _, err := configureOutput(outPath, tracePath, io.Discard)
+	_, _, _, _, err := configureOutput(outPath, tracePath, io.Discard)
 	if err == nil {
 		t.Fatalf("expected invalid trace path rejection")
 	}
@@ -417,7 +404,7 @@ func TestConfigureOutputExitCodeClassifiesUsageAndOperationalErrors(t *testing.T
 	if err := os.WriteFile(traceParent, []byte("not a directory"), 0o644); err != nil {
 		t.Fatalf("write trace parent file: %v", err)
 	}
-	_, _, _, err := configureOutput(outPath, filepath.Join(traceParent, "writes.ndjson"), io.Discard)
+	_, _, _, _, err := configureOutput(outPath, filepath.Join(traceParent, "writes.ndjson"), io.Discard)
 	if err == nil {
 		t.Fatalf("expected operational trace setup error")
 	}
@@ -465,13 +452,16 @@ func decodeCLITraceEvent(t *testing.T, data []byte) mdf.WriteTraceEvent {
 	return event
 }
 
-func assertCLITraceEvent(t *testing.T, event mdf.WriteTraceEvent, seq uint64, payload string) {
+func assertCLITraceEvent(t *testing.T, event mdf.WriteTraceEvent, seq uint64, format string, payload string) {
 	t.Helper()
 	if event.Seq != seq {
 		t.Fatalf("sequence got %d want %d", event.Seq, seq)
 	}
-	if event.Op != "write" {
-		t.Fatalf("op got %q want write", event.Op)
+	if event.Format != format {
+		t.Fatalf("format got %q want %q", event.Format, format)
+	}
+	if event.Op != "emit" {
+		t.Fatalf("op got %q want emit", event.Op)
 	}
 	if event.Bytes != len(payload) {
 		t.Fatalf("bytes got %d want %d", event.Bytes, len(payload))

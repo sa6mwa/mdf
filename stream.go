@@ -22,6 +22,7 @@ type StreamToken struct {
 // StreamRenderer renders parsed Markdown tokens to an io.Writer with ANSI-aware wrapping.
 type StreamRenderer struct {
 	w                 io.Writer
+	trace             *WriteTraceEmitter
 	width             int
 	osc8              bool
 	softWrap          bool
@@ -92,6 +93,7 @@ func (s *StreamRenderer) resetWithConfig(w io.Writer, width int, cfg renderConfi
 	normalizeRenderConfig(&cfg)
 	s.initBuffers()
 	s.w = w
+	s.trace = NewWriteTraceEmitter(WriteTraceFormatANSI, cfg.writeTrace)
 	s.width = width
 	s.osc8 = cfg.osc8
 	s.softWrap = cfg.softWrap
@@ -275,12 +277,12 @@ func (s *StreamRenderer) writeTableLines(lines []tableLine) error {
 			}
 		}
 		if s.style != "" {
-			if _, err := io.WriteString(s.w, ansiReset); err != nil {
+			if err := s.writeEmissionString(ansiReset); err != nil {
 				return err
 			}
 			s.style = ""
 		}
-		if _, err := io.WriteString(s.w, "\n"); err != nil {
+		if err := s.writeEmissionString("\n"); err != nil {
 			return err
 		}
 		s.atLineStart = true
@@ -306,19 +308,18 @@ func (s *StreamRenderer) tableLayoutWidth() int {
 func (s *StreamRenderer) writeRawStyled(text string, style Style) error {
 	if style.Prefix != s.style {
 		if s.style != "" {
-			if _, err := io.WriteString(s.w, ansiReset); err != nil {
+			if err := s.writeEmissionString(ansiReset); err != nil {
 				return err
 			}
 		}
 		if style.Prefix != "" {
-			if _, err := io.WriteString(s.w, style.Prefix); err != nil {
+			if err := s.writeEmissionString(style.Prefix); err != nil {
 				return err
 			}
 		}
 		s.style = style.Prefix
 	}
-	_, err := io.WriteString(s.w, text)
-	return err
+	return s.writeEmissionString(text)
 }
 
 func (s *StreamRenderer) flushInlineForBlock() error {
@@ -338,13 +339,13 @@ func (s *StreamRenderer) flushInlineForBlock() error {
 		s.pendingSpaces = s.pendingSpaces[:0]
 	}
 	if s.style != "" {
-		if _, err := io.WriteString(s.w, ansiReset); err != nil {
+		if err := s.writeEmissionString(ansiReset); err != nil {
 			return err
 		}
 		s.style = ""
 	}
 	if !s.lastWasNewline {
-		if _, err := io.WriteString(s.w, "\n"); err != nil {
+		if err := s.writeEmissionString("\n"); err != nil {
 			return err
 		}
 		s.lastWasNewline = true
@@ -502,14 +503,14 @@ func (s *StreamRenderer) Flush() error {
 		s.pendingSpaces = s.pendingSpaces[:0]
 	}
 	if s.style != "" {
-		_, err := io.WriteString(s.w, ansiReset)
+		err := s.writeEmissionString(ansiReset)
 		s.style = ""
 		if err != nil {
 			return err
 		}
 	}
 	if !s.lastWasNewline {
-		_, _ = io.WriteString(s.w, "\n")
+		_ = s.writeEmissionString("\n")
 		s.lastWasNewline = true
 	}
 	return nil
@@ -829,19 +830,19 @@ func (s *StreamRenderer) processAtomRaw(a atom) error {
 			}
 			if a.Style.Prefix != s.style {
 				if s.style != "" {
-					_, _ = io.WriteString(s.w, ansiReset)
+					_ = s.writeEmissionString(ansiReset)
 				}
 				s.style = a.Style.Prefix
 				if s.style != "" {
-					_, _ = io.WriteString(s.w, s.style)
+					_ = s.writeEmissionString(s.style)
 				}
 			}
-			_, _ = io.WriteString(s.w, a.Text)
+			_ = s.writeEmissionString(a.Text)
 			s.lineWidth += ansi.PrintableRuneWidth(a.Text)
 			s.prefixBuf = append(s.prefixBuf, a.Text...)
 			s.maybeSetWrapIndent()
 			if s.style != "" {
-				_, _ = io.WriteString(s.w, ansiReset)
+				_ = s.writeEmissionString(ansiReset)
 				s.style = ""
 			}
 			if bytes.Contains(s.prefixBuf, []byte(" ")) && !isLinePrefixBytes(s.prefixBuf) {
@@ -961,13 +962,11 @@ func (s *StreamRenderer) writeLinkToken(tok StreamToken) error {
 	}
 	if tok.Kind == tokenLinkStart {
 		if tok.LinkURL != "" {
-			_, err := io.WriteString(s.w, osc8Start+tok.LinkURL+"\x1b\\")
-			return err
+			return s.writeEmissionString(osc8Start + tok.LinkURL + "\x1b\\")
 		}
 		return nil
 	}
-	_, err := io.WriteString(s.w, osc8End)
-	return err
+	return s.writeEmissionString(osc8End)
 }
 
 func (s *StreamRenderer) flushWord(boundary boundaryKind) {
@@ -1218,7 +1217,7 @@ func (s *StreamRenderer) emitRuneWithDelay(r rune, style Style, per time.Duratio
 
 func (s *StreamRenderer) wrapNewline() {
 	if s.style != "" {
-		_, _ = io.WriteString(s.w, ansiReset)
+		_ = s.writeEmissionString(ansiReset)
 		s.style = ""
 	}
 	s.newline(false)
@@ -1244,15 +1243,24 @@ func (s *StreamRenderer) wordTextFromAtoms(atoms []StreamToken) string {
 }
 
 func (s *StreamRenderer) emitAtoms(atoms []StreamToken) error {
+	return s.emitTokenChunk(atoms)
+}
+
+func (s *StreamRenderer) emitTokenChunk(atoms []StreamToken) error {
+	if len(atoms) == 0 {
+		return nil
+	}
+	var b strings.Builder
 	for _, a := range atoms {
 		if a.Delay > 0 {
 			time.Sleep(a.Delay)
 		}
-		if err := s.emitText(a.Text, a.Style); err != nil {
-			return err
-		}
+		s.appendTextEmission(&b, a.Text, a.Style)
 	}
-	return nil
+	if b.Len() == 0 {
+		return nil
+	}
+	return s.writeEmissionString(b.String())
 }
 
 func (s *StreamRenderer) emitTimedText(text string, style Style, delay time.Duration) {
@@ -1285,8 +1293,17 @@ func (s *StreamRenderer) emitRune(r rune, style Style) error {
 }
 
 func (s *StreamRenderer) emitText(text string, style Style) error {
-	if text == "" {
+	var b strings.Builder
+	s.appendTextEmission(&b, text, style)
+	if b.Len() == 0 {
 		return nil
+	}
+	return s.writeEmissionString(b.String())
+}
+
+func (s *StreamRenderer) appendTextEmission(b *strings.Builder, text string, style Style) {
+	if text == "" {
+		return
 	}
 	if strings.ContainsRune(text, '\u00A0') {
 		text = strings.ReplaceAll(text, "\u00A0", " ")
@@ -1297,7 +1314,7 @@ func (s *StreamRenderer) emitText(text string, style Style) error {
 		s.maybeSetWrapIndent()
 		if s.wrapIndent != "" && len(s.prefixBuf) > 0 && s.prefixBuf[len(s.prefixBuf)-1] == ' ' {
 			if s.style != "" {
-				_, _ = io.WriteString(s.w, ansiReset)
+				b.WriteString(ansiReset)
 				s.style = ""
 			}
 		}
@@ -1307,24 +1324,23 @@ func (s *StreamRenderer) emitText(text string, style Style) error {
 	}
 	if style.Prefix != s.style {
 		if s.style != "" {
-			_, _ = io.WriteString(s.w, ansiReset)
+			b.WriteString(ansiReset)
 		}
 		s.style = style.Prefix
 		if s.style != "" {
-			_, _ = io.WriteString(s.w, s.style)
+			b.WriteString(s.style)
 		}
 	}
-	_, err := io.WriteString(s.w, text)
+	b.WriteString(text)
 	s.lineWidth += ansi.PrintableRuneWidth(text)
-	return err
 }
 
 func (s *StreamRenderer) newline(resetStyle bool) {
 	if resetStyle && s.style != "" {
-		_, _ = io.WriteString(s.w, ansiReset)
+		_ = s.writeEmissionString(ansiReset)
 		s.style = ""
 	}
-	_, _ = io.WriteString(s.w, "\n")
+	_ = s.writeEmissionString("\n")
 	s.lineWidth = 0
 	s.lastWasNewline = true
 	if resetStyle {
@@ -1340,9 +1356,22 @@ func (s *StreamRenderer) emitIndent() {
 	if s.wrapIndent == "" {
 		return
 	}
-	_, _ = io.WriteString(s.w, s.wrapIndent)
+	_ = s.writeEmissionString(s.wrapIndent)
 	s.lineWidth += ansi.PrintableRuneWidth(s.wrapIndent)
 	s.atLineStart = false
+}
+
+func (s *StreamRenderer) writeEmissionString(text string) error {
+	if text == "" {
+		return nil
+	}
+	n, err := io.WriteString(s.w, text)
+	if n > 0 && s.trace != nil {
+		if traceErr := s.trace.EmitString(text[:n]); traceErr != nil && err == nil {
+			return traceErr
+		}
+	}
+	return err
 }
 
 func (s *StreamRenderer) maybeSetWrapIndent() {

@@ -85,7 +85,7 @@ func main() {
 	flags.StringVar(&htmlFont, "html-font", string(htmlDefaults.EmbeddedFont), "Embedded HTML font: jetbrainsmono|hack")
 	flags.Float64Var(&htmlContentWidth, "html-content-width", htmlDefaults.ContentMaxWidthCh, "HTML content max width in ch")
 	flags.BoolVar(&pdfMode, "pdf", false, "Generate a PDF instead of ANSI output")
-	flags.StringVar(&traceWritesPath, "trace-writes", "", "Write ANSI sink-write trace events as NDJSON to path, or - for stderr")
+	flags.StringVar(&traceWritesPath, "trace-writes", "", "Write renderer emission trace events as NDJSON to path, or - for stderr")
 	flags.StringVar(&tableBufferFlag, "table-buffer", "full", "Table buffering mode: full|row")
 	flags.StringVar(&tableWireFlag, "table-wire", "line", "Table wire mode: line|ascii|space")
 	flags.StringVar(&pdfBoldFont, "pdf-bold-font", "", "TTF path for bold font")
@@ -155,7 +155,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	writer, closeOut, closeTrace, err := configureOutput(outPath, traceWritesPath, os.Stderr)
+	writer, closeOut, traceEncoder, closeTrace, err := configureOutput(outPath, traceWritesPath, os.Stderr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "configure output: %v\n", err)
 		os.Exit(configureOutputExitCode(err))
@@ -219,7 +219,7 @@ func main() {
 	}
 
 	if htmlMode {
-		if err := renderHTML(reader, writer, theme, boring, pdfConfig{
+		if err := renderHTML(reader, writer, theme, boring, traceEncoder, pdfConfig{
 			margin:           pdfMargin,
 			lineHeight:       pdfLineHeight,
 			fontSize:         pdfFontSize,
@@ -255,12 +255,16 @@ func main() {
 	if boring {
 		theme = boringTheme()
 	}
+	options := []mdf.RenderOption{mdf.WithOSC8(osc8), mdf.WithTableBufferMode(tableBufferMode), mdf.WithTableWireMode(tableWireMode)}
+	if traceEncoder != nil {
+		options = append(options, mdf.WithWriteTrace(traceEncoder))
+	}
 	if err := mdf.Render(mdf.RenderRequest{
 		Reader:  reader,
 		Writer:  writer,
 		Width:   width,
 		Theme:   theme,
-		Options: []mdf.RenderOption{mdf.WithOSC8(osc8), mdf.WithTableBufferMode(tableBufferMode), mdf.WithTableWireMode(tableWireMode)},
+		Options: options,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "render: %v\n", err)
 		os.Exit(1)
@@ -384,7 +388,7 @@ func renderPDF(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdf
 	})
 }
 
-func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pdfConfig) error {
+func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, trace mdf.WriteTraceEncoder, cfgIn pdfConfig) error {
 	cfg := mdfhtml.DefaultConfig()
 	if cfgIn.margin > 0 {
 		cfg.Margin = cfgIn.margin
@@ -471,6 +475,7 @@ func renderHTML(r io.Reader, w io.Writer, theme mdf.Theme, boring bool, cfgIn pd
 		Writer: w,
 		Theme:  theme,
 		Config: cfg,
+		Trace:  trace,
 	})
 }
 
@@ -558,8 +563,8 @@ func validateTableWireForMode(htmlMode bool, mode mdf.TableWireMode) error {
 }
 
 func validateTraceWritesForMode(tracePath string, pdfMode bool, htmlMode bool) error {
-	if strings.TrimSpace(tracePath) != "" && (pdfMode || htmlMode) {
-		return fmt.Errorf("--trace-writes is only supported for ANSI output")
+	if strings.TrimSpace(tracePath) != "" && pdfMode {
+		return fmt.Errorf("--trace-writes is only supported for ANSI and HTML output")
 	}
 	return nil
 }
@@ -762,23 +767,20 @@ func resolveOutput(path string) (io.Writer, io.Closer, error) {
 	return f, f, nil
 }
 
-func configureOutput(outPath string, tracePath string, stderr io.Writer) (io.Writer, io.Closer, io.Closer, error) {
+func configureOutput(outPath string, tracePath string, stderr io.Writer) (io.Writer, io.Closer, mdf.WriteTraceEncoder, io.Closer, error) {
 	if err := validateTraceOutputPaths(tracePath, outPath); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	traceEncoder, closeTrace, err := openWriteTrace(tracePath, stderr)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	writer, closeOut, err := resolveOutput(outPath)
 	if err != nil {
 		closeIfPresent(closeTrace)
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	if traceEncoder != nil {
-		writer = mdf.NewWriteTraceWriter(writer, traceEncoder)
-	}
-	return writer, closeOut, closeTrace, nil
+	return writer, closeOut, traceEncoder, closeTrace, nil
 }
 
 func configureWriteTrace(writer io.Writer, tracePath string, outPath string, stderr io.Writer) (io.Writer, io.Closer, error) {
@@ -792,7 +794,7 @@ func configureWriteTrace(writer io.Writer, tracePath string, outPath string, std
 	if traceEncoder == nil {
 		return writer, nil, nil
 	}
-	return mdf.NewWriteTraceWriter(writer, traceEncoder), closeTrace, nil
+	return writer, closeTrace, nil
 }
 
 func openWriteTrace(tracePath string, stderr io.Writer) (mdf.WriteTraceEncoder, io.Closer, error) {

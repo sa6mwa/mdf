@@ -3,22 +3,30 @@ package mdf
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 )
 
-const writeTraceOpWrite = "write"
+const (
+	writeTraceOpEmit = "emit"
 
-// WriteTraceEvent records one observable write to a rendered output sink.
+	// WriteTraceFormatANSI identifies ANSI renderer emission events.
+	WriteTraceFormatANSI = "ansi"
+	// WriteTraceFormatHTML identifies HTML renderer emission events.
+	WriteTraceFormatHTML = "html"
+)
+
+// WriteTraceEvent records one renderer emission.
 type WriteTraceEvent struct {
-	// Seq is the 1-based event sequence for a trace writer.
+	// Seq is the 1-based event sequence for a trace emitter.
 	Seq uint64 `json:"seq"`
-	// Op identifies the event operation. Write events use "write".
+	// Format identifies the rendered output format.
+	Format string `json:"format"`
+	// Op identifies the event operation. Emission events use "emit".
 	Op string `json:"op"`
-	// Bytes is the number of bytes accepted by the wrapped sink.
+	// Bytes is the number of bytes emitted to the output sink.
 	Bytes int `json:"bytes"`
-	// DataB64 is the exact accepted byte payload encoded with standard base64.
+	// DataB64 is the exact emitted byte payload encoded with standard base64.
 	DataB64 string `json:"data_b64"`
 }
 
@@ -48,40 +56,41 @@ func (e *NDJSONWriteTraceEncoder) EncodeWriteTraceEvent(event WriteTraceEvent) e
 	return e.encoder.Encode(event)
 }
 
-type writeTraceWriter struct {
-	sink  io.Writer
-	trace WriteTraceEncoder
-	seq   uint64
+// WriteTraceEmitter emits sequenced write trace events for one renderer.
+type WriteTraceEmitter struct {
+	format string
+	trace  WriteTraceEncoder
+	seq    uint64
 }
 
-// NewWriteTraceWriter wraps sink and records each successful sink write.
-//
-// The returned writer preserves streaming behavior: each Write call forwards to
-// sink immediately and records only the byte prefix accepted by sink. It does
-// not buffer, replay, or materialize the rendered stream.
-func NewWriteTraceWriter(sink io.Writer, trace WriteTraceEncoder) io.Writer {
-	return &writeTraceWriter{sink: sink, trace: trace}
+// NewWriteTraceEmitter creates an emission trace helper.
+func NewWriteTraceEmitter(format string, trace WriteTraceEncoder) *WriteTraceEmitter {
+	if trace == nil {
+		return nil
+	}
+	return &WriteTraceEmitter{format: format, trace: trace}
 }
 
-func (w *writeTraceWriter) Write(p []byte) (int, error) {
-	if w.sink == nil {
-		return 0, fmt.Errorf("write trace: sink is nil")
+// Emit records one renderer emission payload.
+func (e *WriteTraceEmitter) Emit(p []byte) error {
+	if e == nil || e.trace == nil || len(p) == 0 {
+		return nil
 	}
-	n, writeErr := w.sink.Write(p)
-	if n > 0 && w.trace != nil {
-		w.seq++
-		event := WriteTraceEvent{
-			Seq:     w.seq,
-			Op:      writeTraceOpWrite,
-			Bytes:   n,
-			DataB64: base64.StdEncoding.EncodeToString(p[:n]),
-		}
-		if traceErr := w.trace.EncodeWriteTraceEvent(event); traceErr != nil {
-			if writeErr != nil {
-				return n, errors.Join(writeErr, fmt.Errorf("write trace: %w", traceErr))
-			}
-			return n, fmt.Errorf("write trace: %w", traceErr)
-		}
+	e.seq++
+	event := WriteTraceEvent{
+		Seq:     e.seq,
+		Format:  e.format,
+		Op:      writeTraceOpEmit,
+		Bytes:   len(p),
+		DataB64: base64.StdEncoding.EncodeToString(p),
 	}
-	return n, writeErr
+	if err := e.trace.EncodeWriteTraceEvent(event); err != nil {
+		return fmt.Errorf("write trace: %w", err)
+	}
+	return nil
+}
+
+// EmitString records one renderer emission payload.
+func (e *WriteTraceEmitter) EmitString(text string) error {
+	return e.Emit([]byte(text))
 }
