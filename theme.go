@@ -22,6 +22,7 @@ type Styles struct {
 	CodeInline     Style
 	CodeBlock      Style
 	Quote          Style
+	QuoteText      Style
 	ListMarker     Style
 	LinkText       Style
 	LinkURL        Style
@@ -64,6 +65,10 @@ func stylesFromPalette(p palette.Palette) Styles {
 	if tableHeader == "" {
 		tableHeader = p.H5
 	}
+	quoteText := p.QuoteText
+	if quoteText == "" {
+		quoteText = p.Text
+	}
 	return Styles{
 		Text:           style(p.Text),
 		Heading:        [6]Style{style(p.H1), style(p.H2), style(p.H3), style(p.H4), style(p.H5), style(p.H6)},
@@ -73,6 +78,7 @@ func stylesFromPalette(p palette.Palette) Styles {
 		CodeInline:     style(p.CodeInline),
 		CodeBlock:      style(p.CodeBlock),
 		Quote:          style(p.Quote),
+		QuoteText:      style(quoteText),
 		ListMarker:     style(p.ListMarker),
 		LinkText:       style(palette.Underline, p.LinkText),
 		LinkURL:        style(p.LinkURL),

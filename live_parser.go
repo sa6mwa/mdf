@@ -54,6 +54,7 @@ type liveParser struct {
 	lineSkipBreak             bool
 	lineStyle                 Style
 	lineStyled                bool
+	lineQuoteText             bool
 	pendingBreaks             int
 	hardBreakPending          bool
 	immediateSpaces           []rune
@@ -179,6 +180,7 @@ func (p *liveParser) Reset(theme Theme, osc8 bool) {
 	p.lineSkipBreak = false
 	p.lineStyle = Style{}
 	p.lineStyled = false
+	p.lineQuoteText = false
 	p.pendingBreaks = 0
 	p.hardBreakPending = false
 	p.immediateSpaces = p.immediateSpacesArr[:0]
@@ -366,7 +368,7 @@ func (p *liveParser) feedRune(stream Stream, r rune) error {
 				return err
 			}
 			p.flushPendingDelims()
-			p.lineStyled = false
+			p.leaveLineStyle()
 			if !p.lineSkipBreak {
 				p.pendingBreaks++
 			}
@@ -510,7 +512,7 @@ func (p *liveParser) emitTableRow(stream Stream, cells []string, header bool) er
 		Header: header,
 	}
 	for _, cell := range cells {
-		tokens := p.parseTableCellInline(strings.TrimSpace(cell))
+		tokens := p.parseTableCellInline(strings.TrimSpace(cell), p.tableQuoteDepth > 0 && !header)
 		row.Cells = append(row.Cells, TableCell{
 			Text:   tableCellTokenText(tokens),
 			Tokens: tokens,
@@ -523,12 +525,15 @@ func (p *liveParser) emitTableRow(stream Stream, cells []string, header bool) er
 	return nil
 }
 
-func (p *liveParser) parseTableCellInline(text string) []StreamToken {
+func (p *liveParser) parseTableCellInline(text string, quoteText bool) []StreamToken {
 	if text == "" {
 		return nil
 	}
 	cellParser := newLiveParser(NewTheme("table-cell", p.styles), p.osc8)
 	cellParser.lineDecided = true
+	if quoteText {
+		cellParser.enterQuoteText()
+	}
 	stream := &tokenCaptureStream{}
 	_ = cellParser.emitInlineRunes(stream, []rune(text))
 	_ = cellParser.flushPendingBackticks(stream)
@@ -910,6 +915,7 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 			style := p.styles.Heading[level-1]
 			p.lineStyle = style
 			p.lineStyled = true
+			p.lineQuoteText = false
 			marker := hashStringsWithSpace[level]
 			_ = stream.WriteToken(StreamToken{Token: Token{Text: marker, Style: style}})
 			p.inParagraph = false
@@ -996,8 +1002,10 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		}
 		if depth > 0 {
 			stream.SetWrapIndent(p.quoteWrapIndent(depth, p.listPrefixLen+extra))
+			p.enterQuoteText()
 		} else {
 			stream.SetWrapIndent(p.spaces(p.listPrefixLen + extra))
+			p.leaveLineStyle()
 		}
 		p.listLazy = true
 		p.listItemFirstLine = true
@@ -1146,6 +1154,11 @@ func (p *liveParser) maybeDecideLine(stream Stream, force bool) error {
 		if newParagraph {
 			p.resetInline()
 		}
+		if depth > 0 {
+			p.enterQuoteText()
+		} else {
+			p.leaveLineStyle()
+		}
 		p.lineDecided = true
 		p.lineEmitIdx = len(p.lineBuf) - utf8.RuneCountInString(content)
 		return p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:])
@@ -1190,10 +1203,31 @@ func (p *liveParser) decideParagraph(stream Stream, depth int, rest string, bloc
 	if newParagraph {
 		p.resetInline()
 	}
+	if depth > 0 {
+		p.enterQuoteText()
+	} else {
+		p.leaveLineStyle()
+	}
 	content := strings.TrimLeft(rest, " \t")
 	p.lineDecided = true
 	p.lineEmitIdx = len(p.lineBuf) - utf8.RuneCountInString(content)
 	return p.emitInlineRunes(stream, p.lineBuf[p.lineEmitIdx:])
+}
+
+func (p *liveParser) enterQuoteText() {
+	if p.styles.QuoteText.Prefix == "" {
+		p.leaveLineStyle()
+		return
+	}
+	p.lineStyle = p.styles.QuoteText
+	p.lineStyled = true
+	p.lineQuoteText = true
+}
+
+func (p *liveParser) leaveLineStyle() {
+	p.lineStyle = Style{}
+	p.lineStyled = false
+	p.lineQuoteText = false
 }
 
 func (p *liveParser) maybeDecideIndentCodeLine(stream Stream, force bool) error {
@@ -2292,7 +2326,7 @@ func (p *liveParser) inlineStyle() (Style, tokenKind) {
 	} else if p.lineStyled {
 		style = p.lineStyle
 	}
-	if p.lineStyled && style.Prefix != p.lineStyle.Prefix && style.Prefix != p.styles.Text.Prefix {
+	if p.lineStyled && style.Prefix != p.lineStyle.Prefix && style.Prefix != p.styles.Text.Prefix && !p.inQuoteTextStyle() {
 		style = combineStyles(p.lineStyle, style)
 	}
 	return style, kind
@@ -2487,7 +2521,7 @@ func (p *liveParser) finalize(stream Stream) error {
 				return err
 			}
 			p.flushPendingDelims()
-			p.lineStyled = false
+			p.leaveLineStyle()
 		} else {
 			if p.inIndentCode {
 				if err := p.maybeDecideIndentCodeLine(stream, true); err != nil {
@@ -2514,7 +2548,7 @@ func (p *liveParser) finalize(stream Stream) error {
 						return err
 					}
 					p.flushPendingDelims()
-					p.lineStyled = false
+					p.leaveLineStyle()
 				}
 			}
 		}
@@ -2672,6 +2706,9 @@ func (p *liveParser) emitLinkText(stream Stream, text string) error {
 	if p.lineStyled {
 		baseLine = p.lineStyle
 	}
+	if p.inQuoteTextStyle() {
+		baseLine = Style{}
+	}
 	outerEmph := p.emphasisStyle(baseEm, baseStrong)
 	for _, r := range text {
 		if r == '*' || r == '_' {
@@ -2740,6 +2777,10 @@ func combineStyles(base Style, extra Style) Style {
 		return base
 	}
 	return Style{Prefix: base.Prefix + extra.Prefix}
+}
+
+func (p *liveParser) inQuoteTextStyle() bool {
+	return p.lineQuoteText
 }
 
 func (p *liveParser) quoteWrapIndent(depth int, listPrefixLen int) string {

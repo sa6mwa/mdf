@@ -101,6 +101,49 @@ func TestRenderWriteTraceReconstructsExactHTML(t *testing.T) {
 	}
 }
 
+func TestRenderBlockQuoteTextUsesThemeColorInNonDefaultThemes(t *testing.T) {
+	cfg := DefaultConfig()
+	for _, name := range mdf.AvailableThemes() {
+		if name == "default" {
+			continue
+		}
+		theme, ok := mdf.ThemeByName(name)
+		if !ok {
+			t.Fatalf("missing theme %q", name)
+		}
+		styles := theme.Styles()
+
+		var out bytes.Buffer
+		err := Render(RenderRequest{
+			Reader: strings.NewReader("> plain **strong** [link](https://example.com)\n"),
+			Writer: &out,
+			Theme:  theme,
+			Config: cfg,
+		})
+		if err != nil {
+			t.Fatalf("render html theme %q: %v", name, err)
+		}
+
+		rendered := out.String()
+		quoteTextColor := rgbCSS(parseANSIPrefix(styles.QuoteText.Prefix, cfg.TextRGB).color)
+		quoteMarkerColor := rgbCSS(parseANSIPrefix(styles.Quote.Prefix, cfg.TextRGB).color)
+		strongColor := rgbCSS(parseANSIPrefix(styles.Strong.Prefix, cfg.TextRGB).color)
+		linkColor := rgbCSS(parseANSIPrefix(styles.LinkText.Prefix, cfg.TextRGB).color)
+
+		for _, want := range []string{
+			`<span style="color:` + quoteMarkerColor + `;">&gt;</span>`,
+			`<span style="color:` + quoteTextColor + `;`,
+			`plain `,
+			`<span style="color:` + strongColor + `;font-weight:700;">strong</span>`,
+			`<span style="color:` + linkColor + `;font-weight:700;text-decoration:underline;">link</span>`,
+		} {
+			if !strings.Contains(rendered, want) {
+				t.Fatalf("theme %q missing %q in rendered HTML:\n%s", name, want, rendered)
+			}
+		}
+	}
+}
+
 func TestRenderCanOptIntoEmbeddedHackFont(t *testing.T) {
 	var out bytes.Buffer
 	cfg := DefaultConfig()

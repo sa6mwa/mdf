@@ -61,3 +61,38 @@ func TestHeadingScaleApplied(t *testing.T) {
 		t.Fatalf("unexpected heading font family: got %q want %q", h2.fontFamily, headingFontFamily)
 	}
 }
+
+func TestQuoteTextStyleAppliedForNonDefaultThemes(t *testing.T) {
+	cfg := DefaultConfig()
+	for _, name := range mdf.AvailableThemes() {
+		theme, ok := mdf.ThemeByName(name)
+		if !ok {
+			t.Fatalf("missing theme %q", name)
+		}
+		styles := theme.Styles()
+		s := &pdfStream{
+			cfg:        cfg,
+			styles:     styles,
+			styleCache: make(map[string]pdfStyle),
+		}
+
+		got := s.styleForPrefix(styles.QuoteText.Prefix, 0)
+		wantColor := parseANSIPrefix(styles.QuoteText.Prefix, cfg.TextRGB).color
+		if got.r != wantColor[0] || got.g != wantColor[1] || got.b != wantColor[2] {
+			t.Fatalf("theme %q quote text color got (%d,%d,%d) want (%d,%d,%d)", name, got.r, got.g, got.b, wantColor[0], wantColor[1], wantColor[2])
+		}
+
+		if name == "default" {
+			if styles.QuoteText.Prefix != "" {
+				t.Fatalf("default quote text prefix got %q, want empty", styles.QuoteText.Prefix)
+			}
+			continue
+		}
+		if styles.QuoteText.Prefix == "" {
+			t.Fatalf("theme %q quote text prefix is empty", name)
+		}
+		if styles.QuoteText.Prefix == styles.Quote.Prefix {
+			t.Fatalf("theme %q quote text prefix matches quote marker prefix", name)
+		}
+	}
+}
